@@ -19,8 +19,8 @@ First, install the system dependencies for either [Mac](#apple-mac-os-x) or [Lin
 Then, you need Python 3.8+ and [Poetry](https://python-poetry.org/docs/) to install ACDC, like so
 
 ```bash
-git clone git+https://github.com/ArthurConmy/Automatic-Circuit-Discovery.git
-cd Automatic-Circuit-Discovery
+git clone git+https://github.com/AlignmentResearch/acdc.git
+cd acdc
 poetry env use 3.10      # Or be inside a conda or venv environment
                          # Python 3.10 is recommended but use any Python version >= 3.8
 poetry install
@@ -66,6 +66,13 @@ You can run the slow tests with
 ``` bash
 pytest -s -m slow
 ```
+
+## CI/CD and Docker
+
+A few quick notes:
+
+- You can build the Dockerfile with `build-<tag>`, e.g. `build-latest`.
+- You can see the CI status on [CircleCI](https://app.circleci.com/pipelines/github/AlignmentResearch/acdc).
 
 ## Contributing 
 

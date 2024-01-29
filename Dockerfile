@@ -1,5 +1,5 @@
-FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04
-LABEL org.opencontainers.image.source=https://github.com/arthurconmy/Automatic-Circuit-Discovery
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04 as main
+LABEL org.opencontainers.image.source=https://github.com/AlignmentResearch/acdc
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update -q \
@@ -18,7 +18,7 @@ RUN python3 -m venv $POETRY_HOME \
     && rm -rf "${HOME}/.cache"
 ENV POETRY="${POETRY_HOME}/bin/poetry"
 
-WORKDIR "/Automatic-Circuit-Discovery"
+WORKDIR "/acdc"
 COPY --chown=root:root pyproject.toml poetry.lock ./
 
 # Don't create a virtualenv, the Docker container is already enough isolation
