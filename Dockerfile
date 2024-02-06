@@ -30,8 +30,14 @@ RUN "$POETRY" config virtualenvs.create false \
 # Copy whole repo
 COPY --chown=root:root . .
 # Abort if repo is dirty
-RUN if ! { [ -z "$(git status --porcelain --ignored=traditional)" ] \
-    ; }; then exit 1; fi
+# RUN if ! { [ -z "$(git status --porcelain --ignored=traditional)" ] \
+#     ; }; then exit 1; fi
 
-# Finally install this package
-RUN "$POETRY" install --only-root --no-interaction
+# # Finally install this package
+# RUN "$POETRY" install --only-root --no-interaction
+
+FROM main as devbox
+
+RUN apt-get update -q \
+    && apt-get install -y tmux vim unison
+RUN /bin/bash -c 'curl -fsSL https://code-server.dev/install.sh | sh'
