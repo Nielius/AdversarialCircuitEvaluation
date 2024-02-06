@@ -23,13 +23,13 @@ spec:
             # The repository to get the Dockerfile and context from, with #refs/heads/branch or #commit-hash
             # One should specify the branch name AND the commit hash. The branch name is needed so Kaniko accurately
             # downloads the submodules from that branch.
-            - --context=git://github.com/AlignmentResearch/acdc.git#refs/heads/{BRANCH_NAME}#{COMMIT_FULL}
+            - --context=git://github.com/AlignmentResearch/acdc.git#refs/heads/${BRANCH_NAME}#${COMMIT_FULL}
             - --git=recurse-submodules=true
             # Save intermediate cache. Intermediate cache images get pushed to the cache-repo.
             - --cache=true
             - --cache-repo=ghcr.io/alignmentresearch/acdc/cache
             # Destinations to push the images. Can be multiple.
-            - --destination=ghcr.io/alignmentresearch/acdc:{COMMIT}
+            - --destination=ghcr.io/alignmentresearch/acdc:${TAG}
             - --destination=ghcr.io/alignmentresearch/acdc:latest
             - --verbosity=debug
           volumeMounts:
@@ -47,7 +47,7 @@ spec:
             requests:
               cpu: 1
             limits:
-              memory: "40G"
+              memory: "20G"
       restartPolicy: Never
       imagePullSecrets:
       - name: docker
