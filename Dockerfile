@@ -20,6 +20,8 @@ ENV POETRY="${POETRY_HOME}/bin/poetry"
 
 WORKDIR "/acdc"
 COPY --chown=root:root pyproject.toml poetry.lock ./
+# Unfortunately, we also need to copy the submoddules, because they are being used as dependencies. Maybe there's a better solution for this?
+COPY --chown=root:root submodules submodules
 
 # Don't create a virtualenv, the Docker container is already enough isolation
 RUN "$POETRY" config virtualenvs.create false \
