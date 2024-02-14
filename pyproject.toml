@@ -39,8 +39,7 @@ pytest = "^7.2.0"
 pytest-cov = "^4.0.0"
 jupyterlab = "^3.5.0"
 jupyter = "^1.0.0"
-ruff = "^0.1.14"
-black = "^24.1.1"
+ruff = "^0.2.1"
 pyright = "^1.1.348"
 
 [build-system]
@@ -59,15 +58,11 @@ markers = [
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ['submodules/']
 
 [tool.ruff.lint]
 # Enable the isort rules.
 extend-select = ["I"]
-
-[tool.black]
-# See https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-format
-line-length = 120
-extend-exclude = 'subnetwork_probing/'
 
 [tool.pyright]
 exclude = ["subnetwork_probing/transformer_lens"]
