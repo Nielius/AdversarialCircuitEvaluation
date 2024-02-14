@@ -2,10 +2,11 @@
 
 This implementation of Subnetwork Probing should install by default when installing the ACDC code.
 
-It hosts a fork of `transformer_lens` as a submodule. This should probably be changed in the future.
+We no longer use a fork of `transformer_lens`, and instead implement masking with a `MaskedTransformer` wrapper class around the model.
 
-The fork introduces the class `MaskedHookPoint`, which masks some of its values with either zero or stored activations.
-That's the only crucial difference with mainstream `transformer_lens`. Most of the complexity is in `train.py`.
+Most of the complexity of node SP is in `train.py`.
+
+Edge SP was implemented by Thomas and lives in `train_edge_sp.py` and `sp_utils.py`. In edge SP, we overwrite the inputs to nodes rather than their outputs. We keep track of the residual stream component, so we can mask them separately; non-ablated activations come from `forward_cache` and ablated activations from `ablation_cache`
 
 # Subnetwork Probing
 

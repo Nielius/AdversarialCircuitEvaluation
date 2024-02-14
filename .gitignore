@@ -60,3 +60,9 @@ pts/
 **/.DS_Store
 
 ob-jupyter
+*.bundle
+train_sp.sh
+subnetwork_probing/check_edges_pkl.py
+subnetwork_probing/sp_development_reverse.py
+subnetwork_probing/sp_development.py
+pods.txt

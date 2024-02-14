@@ -254,32 +254,49 @@ def l2_metric(  # this is for proportion... it's unclear how to format this tbh 
     else:
         return ((proc - model_out) ** 2).flatten()
 
-def get_all_tracr_things(task: Literal["reverse", "proportion"], metric_name: Literal["kl_div", "l2"], num_examples: int, device):
+def get_all_tracr_things(task: Literal["reverse", "proportion"], metric_name: Literal["kl_div", "l2"], num_examples: int, device, method=None):
     _, tl_model = get_tracr_model_input_and_tl_model(task=task, device=device)
+    import itertools
 
     if task == "reverse":
-        batch_size = 6
-        seq_len = 4
-        data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+        if method == 'legacy':
+            batch_size = 6
+            seq_len = 4
+            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
 
-        if num_examples != batch_size:
-            raise ValueError("num_examples must be equal to batch_size for reverse task")
+            if num_examples != batch_size:
+                raise ValueError("num_examples must be equal to batch_size for reverse task")
 
-        vals = [0, 1, 2]
-        import itertools
+            vals = [0, 1, 2]
 
-        for perm_idx, perm in enumerate(itertools.permutations(vals)):
-            data_tens[perm_idx] = torch.tensor([3, perm[0], perm[1], perm[2]])
+            for perm_idx, perm in enumerate(itertools.permutations(vals)):
+                data_tens[perm_idx] = torch.tensor([3, perm[0], perm[1], perm[2]])
 
-        patch_data_indices = get_perm(len(data_tens))
-        warnings.warn("Test that this only considers the relevant part of the sequence...")
+            patch_data_indices = get_perm(len(data_tens))
+            warnings.warn("TODO Test that this only considers the relevant part of the sequence...")
 
-        patch_data_tens = data_tens[patch_data_indices]
+            patch_data_tens = data_tens[patch_data_indices]
+
+        else:
+            batch_size = 30
+            seq_len = 4
+            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+            patch_data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+            vals = [0, 1, 2]
+            if num_examples != batch_size:
+                raise ValueError("num_examples must be equal to batch_size for reverse task")
+
+            perms = list(itertools.permutations(vals))
+            pairs = itertools.permutations(perms, 2)
+            print(perms, pairs)
+
+            for perm_idx, (perm1, perm2) in enumerate(pairs):
+                data_tens[perm_idx] = torch.tensor([3, perm1[0], perm1[1], perm1[2]])
+                patch_data_tens[perm_idx] = torch.tensor([3, perm2[0], perm2[1], perm2[2]])
 
         with torch.no_grad():
             model_out = tl_model(data_tens)
-            base_model_logprobs = F.log_softmax(model_out, dim=-1) # oh no...
-
+            base_model_logprobs = torch.log(model_out) # not softmax bc tracr model output is already in [0, 1]
         test_metrics = {
             "kl_div": partial(
                 kl_divergence,
