@@ -161,6 +161,7 @@ def test_editing_edges_notebook():
 
 
 
+@pytest.mark.skip("OOM on CI")
 @pytest.mark.parametrize("task", ["tracr-proportion", "tracr-reverse", "docstring", "induction", "ioi", "greaterthan"])
 @pytest.mark.parametrize("zero_ablation", [False, True])
 def test_full_correspondence_zero_kl(task, zero_ablation, device="cpu", metric_name="kl_div", num_examples=4, seq_len=10):
