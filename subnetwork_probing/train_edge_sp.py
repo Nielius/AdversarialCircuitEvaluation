@@ -2,41 +2,42 @@
 
 import argparse
 import gc
+import os
+import pickle
 import random
 from typing import Callable
-import pickle
-import os
 
 import torch
 import wandb
 from tqdm import tqdm
-from einops import reduce, repeat
 
-from acdc.acdc_utils import filter_nodes, get_present_nodes, reset_network
-from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_docstring_subgraph_true_edges
-from acdc.tracr_task.utils import get_tracr_proportion_edges, get_tracr_reverse_edges
-from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
-from acdc.induction.utils import get_all_induction_things #, get_induction_true_edges
-from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
-from acdc.TLACDCEdge import Edge, EdgeType
+from acdc.TLACDCEdge import EdgeType
+from acdc.acdc_utils import reset_network
+from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_docstring_subgraph_true_edges
+from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
+from acdc.induction.utils import get_all_induction_things  # , get_induction_true_edges
+from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
 from acdc.tracr_task.utils import get_all_tracr_things
+from acdc.tracr_task.utils import get_tracr_proportion_edges, get_tracr_reverse_edges
 from subnetwork_probing.sp_utils import MaskedTransformer, edge_level_corr, print_stats, set_ground_truth_edges
 
-def save_edges(corr: TLACDCCorrespondence, fname: str):
-        edges_list = []
-        for t, e in corr.all_edges().items():
-            if e.present and e.edge_type != EdgeType.PLACEHOLDER:
-                edges_list.append((t, e.effect_size))
 
-        with open(fname, "wb") as f:
-            pickle.dump(edges_list, f)
+def save_edges(corr: TLACDCCorrespondence, fname: str):
+    edges_list = []
+    for t, e in corr.all_edges().items():
+        if e.present and e.edge_type != EdgeType.PLACEHOLDER:
+            edges_list.append((t, e.effect_size))
+
+    with open(fname, "wb") as f:
+        pickle.dump(edges_list, f)
+
 
 def train_edge_sp(
     args,
     masked_model: MaskedTransformer,
     all_task_things: AllDataThings,
-    print_every:int=100,
+    print_every: int = 100,
     get_true_edges: Callable = None,
 ):
     print(f"Using memory {torch.cuda.memory_allocated():_} bytes at training start")
@@ -78,13 +79,15 @@ def train_edge_sp(
 
     print(f"Using memory {torch.cuda.memory_allocated():_} bytes after optimizer init")
     if args.zero_ablation:
-        valid_context_args = test_context_args = dict(ablation='zero')
+        valid_context_args = test_context_args = dict(ablation="zero")
     else:
-        valid_context_args = dict(ablation='resample', ablation_data=all_task_things.validation_patch_data)
-        test_context_args = dict(ablation='resample', ablation_data=all_task_things.test_patch_data)
+        valid_context_args = dict(ablation="resample", ablation_data=all_task_things.validation_patch_data)
+        test_context_args = dict(ablation="resample", ablation_data=all_task_things.test_patch_data)
 
     # Get canonical subgraph so we can print TPR, FPR
-    canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(masked_model.model, use_pos_embed=masked_model.use_pos_embed)
+    canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
+        masked_model.model, use_pos_embed=masked_model.use_pos_embed
+    )
     try:
         d_trues = set(get_true_edges())
         set_ground_truth_edges(canonical_circuit_subgraph, d_trues)
@@ -106,27 +109,30 @@ def train_edge_sp(
 
         if epoch % print_every == 0 and args.print_stats:
             statss = []
-            for i in range(3): # sample multiple times to get average edge_tpr etc.
+            for i in range(3):  # sample multiple times to get average edge_tpr etc.
                 corr = edge_level_corr(masked_model)
                 try:
                     stats = print_stats(corr, canonical_circuit_subgraph, do_print=False)
                     statss.append(stats)
-                except: pass
+                except:
+                    pass
             stats = {k: sum(s[k] for s in statss) / len(statss) for k in statss[0]}
             with torch.no_grad():
                 with masked_model.with_fwd_hooks_and_new_cache(**test_context_args) as hooked_model:
                     test_metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.test_data))
             test_loss = test_metric_loss + regularizer_term * lambda_reg
 
-            wandb.log({
-                "epoch": epoch,
-                "num_edges": masked_model.num_edges(),
-                "regularization_loss": regularizer_term.item(),
-                "validation_metric_loss": metric_loss.item(),
-                "test_metric_loss": test_metric_loss.item(),
-                "total_loss": loss.item(),
-                "test_total_loss": test_loss,
-            } | stats
+            wandb.log(
+                {
+                    "epoch": epoch,
+                    "num_edges": masked_model.num_edges(),
+                    "regularization_loss": regularizer_term.item(),
+                    "validation_metric_loss": metric_loss.item(),
+                    "test_metric_loss": test_metric_loss.item(),
+                    "total_loss": loss.item(),
+                    "test_total_loss": test_loss,
+                }
+                | stats
             )
             # TODO edit this to create a corr from masked edges
             # number_of_nodes, nodes_to_mask = visualize_mask(masked_model)
@@ -135,7 +141,7 @@ def train_edge_sp(
 
     # Save edges to create data for plots later
     corr = edge_level_corr(masked_model)
-    edges_fname = f"edges.pth" # note this is a pickle file
+    edges_fname = "edges.pth"  # note this is a pickle file
     wandb_dir = os.environ.get("WANDB_DIR")
     if wandb_dir is None:
         save_edges(corr, edges_fname)
@@ -160,9 +166,7 @@ def train_edge_sp(
 
         for _ in range(args.n_loss_average_runs):
             with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
-                metric_loss += all_task_things.validation_metric(
-                    hooked_model(all_task_things.validation_data)
-                ).item()
+                metric_loss += all_task_things.validation_metric(hooked_model(all_task_things.validation_data)).item()
         print(f"Final train/validation metric: {metric_loss:.4f}")
 
         if args.zero_ablation:
@@ -244,7 +248,7 @@ if __name__ == "__main__":
             device=torch.device(args.device),
             metric_name=args.loss_type,
         )
-        get_true_edges = lambda: get_ioi_true_edges(all_task_things.tl_model)
+        get_true_edges = lambda: get_ioi_true_edges(all_task_things.tl_model)  # noqa: E731
     elif args.task == "induction":
         all_task_things = get_all_induction_things(
             args.num_examples,
@@ -281,7 +285,7 @@ if __name__ == "__main__":
             metric_name=args.loss_type,
             device=args.device,
         )
-        get_true_edges = lambda: get_greaterthan_true_edges(all_task_things.tl_model)
+        get_true_edges = lambda: get_greaterthan_true_edges(all_task_things.tl_model)  # noqa: E731
     else:
         raise ValueError(f"Unknown task {args.task}")
 

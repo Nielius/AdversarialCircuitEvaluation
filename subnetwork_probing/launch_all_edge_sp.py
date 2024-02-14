@@ -1,9 +1,10 @@
 # from experiments.launcher import KubernetesJob, WandbIdentifier, launch
-import numpy as np
 import random
-from typing import List, Optional
 import subprocess
 import sys
+from typing import List
+
+import numpy as np
 
 METRICS_FOR_TASK = {
     "ioi": ["kl_div", "logit_diff"],
@@ -14,7 +15,10 @@ METRICS_FOR_TASK = {
     "greaterthan": ["kl_div", "greaterthan"],
 }
 
-def make_yamls(TASKS: list[str], testing: bool, reset_networks: bool, template_filename:str, container:str) -> list[str]:
+
+def make_yamls(
+    TASKS: list[str], testing: bool, reset_networks: bool, template_filename: str, container: str
+) -> list[str]:
     """
     Takes a yaml file template and creates many yaml files to pass to kubectl.
     """
@@ -89,7 +93,7 @@ def make_yamls(TASKS: list[str], testing: bool, reset_networks: bool, template_f
                             raise ValueError("Unknown metric")
                     elif task == "induction":
                         seq_len = 300
-                        num_examples  = 50
+                        num_examples = 50
                         if metric == "kl_div":
                             # Typical metric value range: 0.0-16.0
                             regularization_params = expensive_base_regularization_params
@@ -106,8 +110,10 @@ def make_yamls(TASKS: list[str], testing: bool, reset_networks: bool, template_f
                         # should do this simpler way
                         wandb_project = "subnetwork-probing"
                         wandb_entity = "tkwa-team"
-                        wandb_group = f"edge_sp_group_2"
-                        wandb_name = f"tkwa-sp-{task}-{i:05d}{'-optional' if task in ['induction', 'docstring'] else ''}"
+                        wandb_group = "edge_sp_group_2"
+                        wandb_name = (
+                            f"tkwa-sp-{task}-{i:05d}{'-optional' if task in ['induction', 'docstring'] else ''}"
+                        )
 
                         command = [
                             "python",
@@ -131,23 +137,26 @@ def make_yamls(TASKS: list[str], testing: bool, reset_networks: bool, template_f
                             f"--wandb-mode={'offline' if testing else 'online'}",
                             f"--torch-num-threads={4}",
                         ]
-                        if i==0: print(" ".join(command))
+                        if i == 0:
+                            print(" ".join(command))
 
                         template = open(template_filename).read()
                         yaml = template.format(
                             COMMAND=" ".join(command),
                             CONTAINER=container,
                             NAME=f"sp-{task}-{i:05d}",
-                            WANDB_GROUP = wandb_group,
-                            WANDB_PROJECT = wandb_project,
-                            WANDB_JOB_NAME = wandb_name,
-                            WANDB_ENTITY = wandb_entity,
-                            LAUNCH_ID = f"sp-{task}-{i:05d}",
-                            COMMIT_HASH = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True).stdout.decode().strip(),
-                            CPU = 4,
-                            MEMORY = "16Gi",
-                            GPU = 0 if task.startswith("tracr") else 1,
-                            OMP_NUM_THREADS = "'4'", # is this right?
+                            WANDB_GROUP=wandb_group,
+                            WANDB_PROJECT=wandb_project,
+                            WANDB_JOB_NAME=wandb_name,
+                            WANDB_ENTITY=wandb_entity,
+                            LAUNCH_ID=f"sp-{task}-{i:05d}",
+                            COMMIT_HASH=subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
+                            .stdout.decode()
+                            .strip(),
+                            CPU=4,
+                            MEMORY="16Gi",
+                            GPU=0 if task.startswith("tracr") else 1,
+                            OMP_NUM_THREADS="'4'",  # is this right?
                         )
 
                         yamls.append(yaml)
@@ -175,9 +184,9 @@ if __name__ == "__main__":
             testing=False,
             reset_networks=reset_networks,
             template_filename="subnetwork_probing/runner_template.yaml",
-            container = "ghcr.io/tkwa/subnetwork_probing:v1",
+            container="ghcr.io/tkwa/subnetwork_probing:v1",
         )
-        if '--launch-one' in sys.argv:
+        if "--launch-one" in sys.argv:
             yamls_list = yamls_list[:1]
             print(yamls_list[0])
         yamls_for_all_jobs = "\n\n---\n\n".join(yamls_list)

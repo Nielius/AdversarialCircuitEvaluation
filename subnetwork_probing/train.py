@@ -12,27 +12,29 @@ from transformer_lens import HookedTransformer
 from transformer_lens.ActivationCache import ActivationCache
 from transformer_lens.hook_points import HookPoint
 
-from acdc.acdc_utils import filter_nodes, get_edge_stats, get_node_stats, get_present_nodes, reset_network
+from acdc.TLACDCCorrespondence import TLACDCCorrespondence
+from acdc.TLACDCEdge import EdgeType, TorchIndex
+from acdc.TLACDCInterpNode import TLACDCInterpNode
+from acdc.acdc_utils import get_edge_stats, get_node_stats, reset_network
 from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_docstring_subgraph_true_edges
 from acdc.greaterthan.utils import get_all_greaterthan_things
 from acdc.induction.utils import get_all_induction_things
 from acdc.ioi.utils import get_all_ioi_things
-from acdc.TLACDCCorrespondence import TLACDCCorrespondence
-from acdc.TLACDCEdge import Edge, EdgeType, TorchIndex
-from acdc.TLACDCInterpNode import TLACDCInterpNode
 from acdc.tracr_task.utils import get_all_tracr_things
 
 
 def iterative_correspondence_from_mask(
     model: HookedTransformer,
-    nodes_to_mask: List[TLACDCInterpNode], # Can be empty
+    nodes_to_mask: List[TLACDCInterpNode],  # Can be empty
     use_pos_embed: bool = False,
     corr: Optional[TLACDCCorrespondence] = None,
     head_parents: Optional[List] = None,
 ) -> Tuple[TLACDCCorrespondence, List]:
     """Given corr has some nodes masked, also mask the nodes_to_mask"""
 
-    assert (corr is None) == (head_parents is None), "Ensure we're either masking from scratch or we provide details on `head_parents`"
+    assert (corr is None) == (
+        head_parents is None
+    ), "Ensure we're either masking from scratch or we provide details on `head_parents`"
 
     if corr is None:
         corr = TLACDCCorrespondence.setup_from_model(model, use_pos_embed=use_pos_embed)
@@ -65,7 +67,9 @@ def iterative_correspondence_from_mask(
                 )
             )
 
-    assert all([v <= 3 for v in head_parents.values()]), "We should have at most three parents (Q, K and V, connected via placeholders)"
+    assert all(
+        [v <= 3 for v in head_parents.values()]
+    ), "We should have at most three parents (Q, K and V, connected via placeholders)"
 
     for node in nodes_to_mask + additional_nodes_to_mask:
         # Mark edges where this is child as not present
@@ -125,9 +129,7 @@ class MaskedTransformer(torch.nn.Module):
             # QKV: turn each head on/off
             for q_k_v in ["q", "k", "v"]:
                 mask_name = f"blocks.{layer_index}.attn.hook_{q_k_v}"
-                self.mask_logits.append(torch.nn.Parameter(
-                    torch.zeros((model.cfg.n_heads, 1)) + mask_init_constant
-                ))
+                self.mask_logits.append(torch.nn.Parameter(torch.zeros((model.cfg.n_heads, 1)) + mask_init_constant))
                 self.mask_logits_names.append(mask_name)
                 self._mask_logits_dict[mask_name] = self.mask_logits[-1]
 
@@ -142,10 +144,7 @@ class MaskedTransformer(torch.nn.Module):
 
     def regularization_loss(self) -> torch.Tensor:
         center = self.beta * math.log(-self.gamma / self.zeta)
-        per_parameter_loss = [
-            torch.sigmoid(scores - center).mean()
-            for scores in self.mask_logits
-        ]
+        per_parameter_loss = [torch.sigmoid(scores - center).mean() for scores in self.mask_logits]
         return torch.mean(torch.stack(per_parameter_loss))
 
     def mask_logits_names_filter(self, name):
@@ -274,7 +273,6 @@ def train_sp(
     model_params = list(p for p in masked_model.model.parameters() if p.requires_grad)
     assert len(model_params) == 0, ("MODEL should be empty", model_params)
     trainer = torch.optim.Adam(mask_params, lr=args.lr)
-
 
     if args.zero_ablation:
         masked_model.do_zero_caching()
@@ -458,9 +456,14 @@ if __name__ == "__main__":
         canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(masked_model.model, use_pos_embed=False)
         d_trues = set(get_true_edges())
 
-        for (receiver_name, receiver_index, sender_name, sender_index), edge in canonical_circuit_subgraph.all_edges().items():
-            key =(receiver_name, receiver_index.hashable_tuple, sender_name, sender_index.hashable_tuple)
-            edge.present = (key in d_trues)
+        for (
+            receiver_name,
+            receiver_index,
+            sender_name,
+            sender_index,
+        ), edge in canonical_circuit_subgraph.edge_dict().items():
+            key = (receiver_name, receiver_index.hashable_tuple, sender_name, sender_index.hashable_tuple)
+            edge.present = key in d_trues
 
         stats = get_node_stats(ground_truth=canonical_circuit_subgraph, recovered=corr)
         tpr = stats["true positive"] / (stats["true positive"] + stats["false negative"])

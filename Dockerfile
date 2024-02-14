@@ -43,3 +43,5 @@ FROM main as devbox
 RUN apt-get update -q \
     && apt-get install -y tmux vim unison
 RUN /bin/bash -c 'curl -fsSL https://code-server.dev/install.sh | sh'
+
+RUN "$POETRY" install --no-interaction

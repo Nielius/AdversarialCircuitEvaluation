@@ -32,7 +32,7 @@ from acdc.acdc_utils import (
 
 from acdc.TLACDCEdge import (
     TorchIndex,
-    Edge, 
+    EdgeInfo,
     EdgeType,
 )  # these introduce several important classes !!!
 
@@ -54,6 +54,7 @@ class AllDataThings:
     test_mask: Optional[torch.Tensor]
     test_patch_data: torch.Tensor
 
+
 def get_docstring_model(device="cuda"):
     tl_model = HookedTransformer.from_pretrained(
         "attn-only-4l",
@@ -62,6 +63,7 @@ def get_docstring_model(device="cuda"):
     tl_model.set_use_split_qkv_input(True)
     tl_model.to(device)
     return tl_model
+
 
 def get_all_docstring_things(
     num_examples,
@@ -129,10 +131,9 @@ def get_all_docstring_things(
 
         # note neg sign!!!
         answer = -(correct_logits - incorrect_logits.max(dim=-1).values)
-        if return_one_element: 
+        if return_one_element:
             answer = answer.mean()
         return answer
-
 
     def ldgz_docstring_metric(
         logits: torch.Tensor,
@@ -144,7 +145,7 @@ def get_all_docstring_things(
         pos_logits = logits[:, -1, :]
         max_correct, _ = torch.gather(pos_logits, index=correct_labels[..., None], dim=1).max(dim=1)
         max_wrong, _ = torch.gather(pos_logits, index=wrong_labels, dim=1).max(dim=1)
-        
+
         answer = -(max_correct - max_wrong > 0).float()
         if return_one_element:
             answer = answer.sum()
@@ -191,7 +192,6 @@ def get_all_docstring_things(
         )
     else:
         raise ValueError(f"metric_name {metric_name} not recognized")
-
 
     test_metrics = {
         "kl_div": partial(
@@ -242,14 +242,14 @@ def get_all_docstring_things(
         test_patch_data=test_patch_data,
     )
 
-def get_docstring_subgraph_true_edges():
 
+def get_docstring_subgraph_true_edges():
     # the manual graph, from Stefan
 
     edges_to_keep = []
 
     COL = TorchIndex([None])
-    H = lambda i: TorchIndex([None, None, i])   
+    H = lambda i: TorchIndex([None, None, i])
 
     edges_to_keep.append(("blocks.1.hook_v_input", H(4), "blocks.0.attn.hook_result", H(5)))
     edges_to_keep.append(("blocks.0.attn.hook_v", H(5), "blocks.0.hook_v_input", H(5)))
@@ -282,7 +282,9 @@ def get_docstring_subgraph_true_edges():
         edges_to_keep.append(("blocks.3.hook_k_input", L3H, "blocks.2.attn.hook_result", H(0)))
         edges_to_keep.append(("blocks.3.hook_k_input", L3H, "blocks.1.attn.hook_result", H(2)))
 
-    assert len(edges_to_keep) == 37, len(edges_to_keep) # reflects the value in the docstring appendix of the manual circuit as of 12th June
+    assert len(edges_to_keep) == 37, len(
+        edges_to_keep
+    )  # reflects the value in the docstring appendix of the manual circuit as of 12th June
 
     # format this into the dict thing... munging ugh
     # d = {(d[0], d[1].hashable_tuple, d[2], d[3].hashable_tuple): False for d in exp.corr.all_edges()}

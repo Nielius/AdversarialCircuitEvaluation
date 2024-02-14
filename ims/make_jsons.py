@@ -1,14 +1,14 @@
-#%%
+# %%
 
 import plotly
 
-# Set renderers 
-plotly.io.renderers.default = "jupyterlab" # apparently the secret sauce to make latex work in notebooks (not requireing setting renderer to browser?)
-# that failed 
+# Set renderers
+plotly.io.renderers.default = "jupyterlab"  # apparently the secret sauce to make latex work in notebooks (not requireing setting renderer to browser?)
+# that failed
 
 plotly.io.renderers.default = "browser"
 
-# note: LATEX works in scripts, 
+# note: LATEX works in scripts,
 
 
 # %%
@@ -22,7 +22,7 @@ plotly_graph.show()
 
 # %%
 
-# Get new data 
+# Get new data
 paper_corrupted_fname = "current_paper_induction_json.json"
 paper_corrupted_figure = plotly.io.read_json(paper_corrupted_fname)
 paper_zero_figure = plotly.io.read_json("current_paper_induction_zero.json")
@@ -30,8 +30,8 @@ paper_zero_figure = plotly.io.read_json("current_paper_induction_zero.json")
 # %%
 
 scatter_names = [
-    "ACDC", 
-    "SP", 
+    "ACDC",
+    "SP",
     "HISP",
 ]
 
@@ -70,7 +70,7 @@ for i in range(len(plotly_graph.data)):
         if plotly_graph.data[i]["name"] == "ACDC":
             cur_col_data = color_data[("corrupted", plotly_graph.data[i]["name"])]
             plotly_graph.data[i]["marker"]["color"] = cur_col_data
-        the_ref[plotly_graph.data[i]["name"]] =plotly_graph.data[i]["marker"]
+        the_ref[plotly_graph.data[i]["name"]] = plotly_graph.data[i]["marker"]
 
     if plotly_graph.data[i]["yaxis"] == "y2" and plotly_graph.data[i]["name"] in scatter_names:
         plotly_graph.data[i]["x"] = x_data[("zero", plotly_graph.data[i]["name"])]
@@ -78,14 +78,16 @@ for i in range(len(plotly_graph.data)):
         # if plotly_graph.data[i]["name"] == "ACDC":
         #     cur_col_data = color_data[("zero", plotly_graph.data[i]["name"])]
         #     plotly_graph.data[i]["marker"]["color"] = cur_col_data
-            # cur_col_data = color_data[("corrupted", plotly_graph.data[i]["name"])]
+        # cur_col_data = color_data[("corrupted", plotly_graph.data[i]["name"])]
 
 
 for i in range(len(plotly_graph.data)):
     if plotly_graph.data[i]["yaxis"] == "y2" and plotly_graph.data[i]["name"] in scatter_names:
         print(plotly_graph.data[i])
         print("Hey")
-        plotly_graph.data[i]["marker"] = the_ref[plotly_graph.data[i]["name"]] # color_data[("corrupted", plotly_graph.data[i]["name"])]
+        plotly_graph.data[i]["marker"] = the_ref[
+            plotly_graph.data[i]["name"]
+        ]  # color_data[("corrupted", plotly_graph.data[i]["name"])]
 
 # %%
 
@@ -98,7 +100,7 @@ lis = []
 for i in range(len(plotly_graph.data)):
     if plotly_graph.data[i]["yaxis"] == "y3":
         # print(plotly_graph.data[i])
-        # break        
+        # break
         # print(i)
         lis.append(i)
 
@@ -107,7 +109,7 @@ for i in range(len(plotly_graph.data)):
 # Remove this from the paper figure
 
 for l in sorted(lis[1:], reverse=True):
-    plotly_graph.data = plotly_graph.data[:l] + plotly_graph.data[l+1:]
+    plotly_graph.data = plotly_graph.data[:l] + plotly_graph.data[l + 1 :]
 
 # %%
 

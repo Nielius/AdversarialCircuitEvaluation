@@ -8,133 +8,37 @@
 # <h3>Setup:</h3>
 # <p>Janky code to do different setup when run in a Colab notebook vs VSCode (adapted from e.g <a href="https://github.com/neelnanda-io/TransformerLens/blob/5c89b7583e73ce96db5e46ef86a14b15f303dde6/demos/Activation_Patching_in_TL_Demo.ipynb">this notebook</a>)</p>
 
-# %%
-try:
-    import google.colab
 
-    IN_COLAB = True
-    print("Running as a Colab notebook")
-
-    import subprocess  # to install graphviz dependencies
-
-    command = ["apt-get", "install", "graphviz-dev"]
-    subprocess.run(command, check=True)
-
-    import os  # make images folder
-
-    os.mkdir("ims/")
-
-    from IPython import get_ipython
-
-    ipython = get_ipython()
-
-    ipython.run_line_magic(  # install ACDC
-        "pip",
-        "install git+https://github.com/ArthurConmy/Automatic-Circuit-Discovery.git@d89f7fa9cbd095202f3940c889cb7c6bf5a9b516",
-    )
-
-except Exception as e:
-    IN_COLAB = False
-    print("Running outside of colab")
-
-    import numpy  # crucial to not get cursed error
-    import plotly
-
-    plotly.io.renderers.default = "colab"  # added by Arthur so running as a .py notebook with #%% generates .ipynb notebooks that display in colab
-    # disable this option when developing rather than generating notebook outputs
-
-    import os  # make images folder
-
-    if not os.path.exists("ims/"):
-        os.mkdir("ims/")
-
-    from IPython import get_ipython
-
-    ipython = get_ipython()
-    if ipython is not None:
-        print("Running as a notebook")
-        ipython.run_line_magic("load_ext", "autoreload")  # type: ignore
-        ipython.run_line_magic("autoreload", "2")  # type: ignore
-    else:
-        print("Running as a script")
-
-# %% [markdown]
-# <h2>Imports etc</h2>
-
-# %%
-import wandb
-import IPython
-from IPython.display import Image, display
-import torch
+import argparse
+import datetime
 import gc
-from tqdm import tqdm
-import networkx as nx
 import os
+from pathlib import Path
+
+import IPython
 import torch
-import huggingface_hub
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import numpy as np
-import einops
-from tqdm import tqdm
-import yaml
-import pandas
-from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
+import wandb
+from IPython.display import Image, display
 
-import matplotlib.pyplot as plt
-import plotly.express as px
-import plotly.io as pio
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-
-from transformer_lens.hook_points import HookedRootModule, HookPoint
-from transformer_lens.HookedTransformer import (
-    HookedTransformer,
-)
-
-try:
-    from acdc.tracr_task.utils import (
-        get_all_tracr_things,
-        get_tracr_model_input_and_tl_model,
-    )
-except Exception as e:
-    print(f"Could not import `tracr` because {e}; the rest of the file should work but you cannot use the tracr tasks")
-from acdc.docstring.utils import get_all_docstring_things
-from acdc.logic_gates.utils import get_all_logic_gate_things
-from acdc.acdc_utils import (
-    make_nd_dict,
-    reset_network,
-    shuffle_tensor,
-    cleanup,
-    ct,
-    TorchIndex,
-    EdgeInfo,
-    EdgeType,
-)  # these introduce several important classes !!!
-
-from acdc.TLACDCCorrespondence import TLACDCCorrespondence
-from acdc.TLACDCInterpNode import TLACDCInterpNode
 from acdc.TLACDCExperiment import TLACDCExperiment, WandbSettings
-
+from acdc.acdc_graphics import show
 from acdc.acdc_utils import (
-    kl_divergence,
+    reset_network,
+    ct,
+)  # these introduce several important classes !!!
+from acdc.docstring.utils import get_all_docstring_things
+from acdc.greaterthan.utils import get_all_greaterthan_things
+from acdc.induction.utils import (
+    get_all_induction_things,
 )
 from acdc.ioi.utils import (
     get_all_ioi_things,
-    get_gpt2_small,
 )
-from acdc.induction.utils import (
-    get_all_induction_things,
-    get_validation_data,
-    get_good_induction_candidates,
-    get_mask_repeat_candidates,
-)
-from acdc.greaterthan.utils import get_all_greaterthan_things
+from acdc.logic_gates.utils import get_all_logic_gate_things
+from acdc.tracr_task.utils import get_all_tracr_things
 
-from acdc.acdc_graphics import build_random_colorscheme_for_correspondence, show
-import argparse
-
+IN_COLAB = False
+Path("ims/").mkdir(exist_ok=True)
 torch.autograd.set_grad_enabled(False)
 
 # %% [markdown]
@@ -202,26 +106,8 @@ parser.add_argument(
     "--abs-value-threshold", action="store_true", help="Use the absolute value of the result to check threshold"
 )
 
-if ipython is not None:
-    # We are in a notebook
-    # you can put the command you would like to run as the ... in r"""..."""
-    args = parser.parse_args(
-        [
-            line.strip()
-            for line in r"""--task=induction\
---zero-ablation\
---threshold=0.71\
---indices-mode=reverse\
---first-cache-cpu=False\
---second-cache-cpu=False\
---max-num-epochs=100000""".split(
-                "\\\n"
-            )
-        ]
-    )
-else:
-    # read from command line
-    args = parser.parse_args()
+
+args = parser.parse_args()
 
 # Process args
 
@@ -311,7 +197,7 @@ elif TASK == "docstring":
         correct_incorrect_wandb=True,
     )
 elif TASK == "greaterthan":
-    num_examples = 100
+    num_examples = 100 if not args.single_step else 3
     things = get_all_greaterthan_things(num_examples=num_examples, metric_name=args.metric, device=DEVICE)
 else:
     raise ValueError(f"Unknown task {TASK}")
@@ -355,7 +241,10 @@ if WANDB_RUN_NAME is None or IPython.get_ipython() is not None:
 else:
     assert WANDB_RUN_NAME is not None, "I want named runs, always"
 
-tl_model.reset_hooks()
+# -----------
+
+
+# delete me: tl_model.reset_hooks()
 exp = TLACDCExperiment(
     model=tl_model,
     threshold=THRESHOLD,
@@ -394,11 +283,13 @@ exp = TLACDCExperiment(
 
 # %%
 
-import datetime
 
 exp_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-for i in range(args.max_num_epochs):
+
+for i in range(
+    args.max_num_epochs
+):  # NUDB: these aren't really epochs, are they? they are just "steps" where you look at a single node
     exp.step(testing=False)
 
     show(
@@ -407,7 +298,7 @@ for i in range(args.max_num_epochs):
         show_full_index=False,
     )
 
-    if IN_COLAB or ipython is not None:
+    if IN_COLAB:
         # so long as we're not running this as a script, show the image!
         display(Image(f"ims/img_new_{i+1}.png"))
 

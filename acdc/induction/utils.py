@@ -30,11 +30,12 @@ from acdc.acdc_utils import (
 
 from acdc.TLACDCEdge import (
     TorchIndex,
-    Edge, 
+    EdgeInfo,
     EdgeType,
 )  # these introduce several important classes !!!
 from transformer_lens import HookedTransformer
 from acdc.acdc_utils import kl_divergence, negative_log_probs
+
 
 def get_model(device):
     tl_model = HookedTransformer.from_pretrained(
@@ -47,8 +48,9 @@ def get_model(device):
 
     # standard ACDC options
     tl_model.set_use_attn_result(True)
-    tl_model.set_use_split_qkv_input(True) 
+    tl_model.set_use_split_qkv_input(True)
     return tl_model
+
 
 def get_validation_data(num_examples=None, seq_len=None, device=None):
     validation_fname = huggingface_hub.hf_hub_download(
@@ -61,6 +63,7 @@ def get_validation_data(num_examples=None, seq_len=None, device=None):
     else:
         return validation_data[:num_examples][:seq_len]
 
+
 def get_good_induction_candidates(num_examples=None, seq_len=None, device=None):
     """Not needed?"""
     good_induction_candidates_fname = huggingface_hub.hf_hub_download(
@@ -72,6 +75,7 @@ def get_good_induction_candidates(num_examples=None, seq_len=None, device=None):
         return good_induction_candidates
     else:
         return good_induction_candidates[:num_examples][:seq_len]
+
 
 def get_mask_repeat_candidates(num_examples=None, seq_len=None, device=None):
     mask_repeat_candidates_fname = huggingface_hub.hf_hub_download(
@@ -86,25 +90,27 @@ def get_mask_repeat_candidates(num_examples=None, seq_len=None, device=None):
         return mask_repeat_candidates[:num_examples, :seq_len]
 
 
-def get_all_induction_things(num_examples, seq_len, device, data_seed=42, metric="kl_div", return_one_element=True) -> AllDataThings:
+def get_all_induction_things(
+    num_examples, seq_len, device, data_seed=42, metric="kl_div", return_one_element=True
+) -> AllDataThings:
     tl_model = get_model(device=device)
 
     validation_data_orig = get_validation_data(device=device)
-    mask_orig = get_mask_repeat_candidates(num_examples=None, device=device) # None so we get all
+    mask_orig = get_mask_repeat_candidates(num_examples=None, device=device)  # None so we get all
     assert validation_data_orig.shape == mask_orig.shape
 
-    assert seq_len <= validation_data_orig.shape[1]-1
+    assert seq_len <= validation_data_orig.shape[1] - 1
 
     validation_slice = slice(0, num_examples)
     validation_data = validation_data_orig[validation_slice, :seq_len].contiguous()
-    validation_labels = validation_data_orig[validation_slice, 1:seq_len+1].contiguous()
+    validation_labels = validation_data_orig[validation_slice, 1 : seq_len + 1].contiguous()
     validation_mask = mask_orig[validation_slice, :seq_len].contiguous()
 
     validation_patch_data = shuffle_tensor(validation_data, seed=data_seed).contiguous()
 
-    test_slice = slice(num_examples, num_examples*2)
+    test_slice = slice(num_examples, num_examples * 2)
     test_data = validation_data_orig[test_slice, :seq_len].contiguous()
-    test_labels = validation_data_orig[test_slice, 1:seq_len+1].contiguous()
+    test_labels = validation_data_orig[test_slice, 1 : seq_len + 1].contiguous()
     test_mask = mask_orig[test_slice, :seq_len].contiguous()
 
     # data_seed+1: different shuffling
@@ -131,7 +137,9 @@ def get_all_induction_things(num_examples, seq_len, device, data_seed=42, metric
         )
     elif metric == "match_nll":
         validation_metric = MatchNLLMetric(
-            labels=validation_labels, base_model_logprobs=base_val_logprobs, mask_repeat_candidates=validation_mask,
+            labels=validation_labels,
+            base_model_logprobs=base_val_logprobs,
+            mask_repeat_candidates=validation_mask,
             last_seq_element_only=False,
         )
     else:
@@ -151,7 +159,9 @@ def get_all_induction_things(num_examples, seq_len, device, data_seed=42, metric
             last_seq_element_only=False,
         ),
         "match_nll": MatchNLLMetric(
-            labels=test_labels, base_model_logprobs=base_test_logprobs, mask_repeat_candidates=test_mask,
+            labels=test_labels,
+            base_model_logprobs=base_test_logprobs,
+            mask_repeat_candidates=test_mask,
             last_seq_element_only=False,
         ),
     }
@@ -181,7 +191,7 @@ def one_item_per_batch(toks_int_values, toks_int_values_other, mask_rep, base_mo
     new_base_model_logprobs_list = []
 
     for i in range(batch_size):
-        for j in range(seq_len - 1): # -1 because we don't know what follows the last token so can't calculate losses
+        for j in range(seq_len - 1):  # -1 because we don't know what follows the last token so can't calculate losses
             if mask_rep[i, j]:
                 end_positions.append(j)
                 new_tensors.append(toks_int_values[i].cpu().clone())
@@ -192,14 +202,18 @@ def one_item_per_batch(toks_int_values, toks_int_values_other, mask_rep, base_mo
     return_tensor = torch.stack(new_tensors).to(toks_int_values.device).clone()
     end_positions_tensor = torch.tensor(end_positions).long()
 
-    new_base_model_logprobs = torch.stack(new_base_model_logprobs_list)[torch.arange(len(end_positions_tensor)), end_positions_tensor].to(toks_int_values.device).clone()
-    metric = partial(
-        kl_divergence, 
-        base_model_logprobs=new_base_model_logprobs, 
-        end_positions=end_positions_tensor, 
-        mask_repeat_candidates=None, # !!! 
-        last_seq_element_only=False, 
-        return_one_element=False
+    new_base_model_logprobs = (
+        torch.stack(new_base_model_logprobs_list)[torch.arange(len(end_positions_tensor)), end_positions_tensor]
+        .to(toks_int_values.device)
+        .clone()
     )
-    
+    metric = partial(
+        kl_divergence,
+        base_model_logprobs=new_base_model_logprobs,
+        end_positions=end_positions_tensor,
+        mask_repeat_candidates=None,  # !!!
+        last_seq_element_only=False,
+        return_one_element=False,
+    )
+
     return return_tensor, toks_int_values_other_batch, end_positions_tensor, metric

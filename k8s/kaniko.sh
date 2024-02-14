@@ -1,6 +1,6 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-export TAG=$(git rev-parse --short HEAD)
+export TAG=${TAG-$(git rev-parse --short HEAD)}
 export COMMIT_FULL=$(git rev-parse HEAD)
 export BRANCH_NAME=$(git branch --show-current)
 

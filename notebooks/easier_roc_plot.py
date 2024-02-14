@@ -127,12 +127,12 @@ for i, alg in enumerate(["ACDC", "SP"]):
     fig.add_trace(
         go.Heatmap(
             z=nums,
-            colorscale='Viridis',
+            colorscale="Viridis",
             showscale=False,
         ),
         row=1,
         col=2,
-        )
+    )
 
 fig.update_xaxes(showline=False, zeroline=False, showgrid=False, row=1, col=2, showticklabels=False, ticks="")
 fig.update_yaxes(showline=False, zeroline=False, showgrid=False, row=1, col=2, side="right")

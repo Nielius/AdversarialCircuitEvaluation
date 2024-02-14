@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from dataclasses import dataclass
 from acdc.TLACDCEdge import (
-    Edge,
+    EdgeInfo,
     EdgeType,
     TorchIndex,
 )
@@ -22,6 +22,7 @@ from tqdm import tqdm
 import wandb
 from transformer_lens.HookedTransformer import HookedTransformer
 
+
 def get_gpt2_small(device="cuda") -> HookedTransformer:
     tl_model = HookedTransformer.from_pretrained("gpt2")
     tl_model = tl_model.to(device)
@@ -31,17 +32,19 @@ def get_gpt2_small(device="cuda") -> HookedTransformer:
         tl_model.set_use_hook_mlp_in(True)
     return tl_model
 
+
 def get_ioi_gpt2_small(device="cuda"):
     """For backwards compat"""
     return get_gpt2_small(device=device)
+
 
 def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=True):
     tl_model = get_gpt2_small(device=device)
     ioi_dataset = IOIDataset(
         prompt_type="ABBA",
-        N=num_examples*2,
+        N=num_examples * 2,
         nb_templates=1,
-        seed = 0,
+        seed=0,
     )
 
     abc_dataset = (
@@ -53,10 +56,10 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
     seq_len = ioi_dataset.toks.shape[1]
     assert seq_len == 16, f"Well, I thought ABBA #1 was 16 not {seq_len} tokens long..."
 
-    default_data = ioi_dataset.toks.long()[:num_examples*2, : seq_len - 1].to(device)
-    patch_data = abc_dataset.toks.long()[:num_examples*2, : seq_len - 1].to(device)
-    labels = ioi_dataset.toks.long()[:num_examples*2, seq_len-1]
-    wrong_labels = torch.as_tensor(ioi_dataset.s_tokenIDs[:num_examples*2], dtype=torch.long, device=device)
+    default_data = ioi_dataset.toks.long()[: num_examples * 2, : seq_len - 1].to(device)
+    patch_data = abc_dataset.toks.long()[: num_examples * 2, : seq_len - 1].to(device)
+    labels = ioi_dataset.toks.long()[: num_examples * 2, seq_len - 1]
+    wrong_labels = torch.as_tensor(ioi_dataset.s_tokenIDs[: num_examples * 2], dtype=torch.long, device=device)
 
     assert torch.equal(labels, torch.as_tensor(ioi_dataset.io_tokenIDs, dtype=torch.long))
     labels = labels.to(device)
@@ -71,14 +74,12 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
     test_labels = labels[num_examples:]
     test_wrong_labels = wrong_labels[num_examples:]
 
-
     with torch.no_grad():
         base_model_logits = tl_model(default_data)[:, -1, :]
         base_model_logprobs = F.log_softmax(base_model_logits, dim=-1)
 
     base_validation_logprobs = base_model_logprobs[:num_examples, :]
     base_test_logprobs = base_model_logprobs[num_examples:, :]
-
 
     if metric_name == "kl_div":
         validation_metric = partial(
@@ -158,6 +159,7 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
         test_patch_data=test_patch_data,
     )
 
+
 IOI_CIRCUIT = {
     "name mover": [
         (9, 9),  # by importance
@@ -196,15 +198,17 @@ IOI_CIRCUIT = {
     ],
 }
 
+
 @dataclass(frozen=True)
 class Conn:
     inp: str
     out: str
     qkv: tuple[str, ...]
 
+
 def get_ioi_true_edges(model):
     nodes_to_mask = []
-    
+
     all_groups_of_nodes = [group for _, group in IOI_CIRCUIT.items()]
     all_nodes = [node for group in all_groups_of_nodes for node in group]
     assert len(all_nodes) == 26, len(all_nodes)
@@ -216,14 +220,18 @@ def get_ioi_true_edges(model):
             if (layer_idx, head_idx) not in all_nodes:
                 for letter in ["q", "k", "v"]:
                     nodes_to_mask.append(
-                        TLACDCInterpNode(name=f"blocks.{layer_idx}.attn.hook_{letter}", index = TorchIndex([None, None, head_idx]), incoming_edge_type=EdgeType.DIRECT_COMPUTATION),
+                        TLACDCInterpNode(
+                            name=f"blocks.{layer_idx}.attn.hook_{letter}",
+                            index=TorchIndex([None, None, head_idx]),
+                            incoming_edge_type=EdgeType.DIRECT_COMPUTATION,
+                        ),
                     )
 
-
     from subnetwork_probing.train import iterative_correspondence_from_mask
+
     corr, _ = iterative_correspondence_from_mask(
-        nodes_to_mask = nodes_to_mask,
-        model = model,
+        nodes_to_mask=nodes_to_mask,
+        model=model,
     )
 
     # For all heads...
@@ -236,12 +244,14 @@ def get_ioi_true_edges(model):
             # Remove all other_head->this_head connections in the circuit
             for layer_from in range(layer_idx):
                 for head_from in range(12):
-                    edge_to[f"blocks.{layer_from}.attn.hook_result"][TorchIndex([None, None, head_from])].present = False
+                    edge_to[f"blocks.{layer_from}.attn.hook_result"][
+                        TorchIndex([None, None, head_from])
+                    ].present = False
 
             # Remove connection from this head to the output
-            corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][f"blocks.{layer_idx}.attn.hook_result"][TorchIndex([None, None, head_idx])].present = False
-
-
+            corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][f"blocks.{layer_idx}.attn.hook_result"][
+                TorchIndex([None, None, head_idx])
+            ].present = False
 
     special_connections: set[Conn] = {
         Conn("INPUT", "previous token", ("q", "k", "v")),
@@ -267,7 +277,10 @@ def get_ioi_true_edges(model):
             for mlp_layer_idx in range(12):
                 idx_from.append((mlp_layer_idx, f"blocks.{mlp_layer_idx}.hook_mlp_out", TorchIndex([None])))
         else:
-            idx_from = [(layer_idx, f"blocks.{layer_idx}.attn.hook_result", TorchIndex([None, None, head_idx])) for layer_idx, head_idx in IOI_CIRCUIT[conn.inp]]
+            idx_from = [
+                (layer_idx, f"blocks.{layer_idx}.attn.hook_result", TorchIndex([None, None, head_idx]))
+                for layer_idx, head_idx in IOI_CIRCUIT[conn.inp]
+            ]
 
         if conn.out == "OUTPUT":
             idx_to = [(13, "blocks.11.hook_resid_post", TorchIndex([None]))]
@@ -285,7 +298,13 @@ def get_ioi_true_edges(model):
                 if layer_to > layer_from:
                     corr.edges[layer_name_to][which_idx_to][layer_name_from][which_idx_from].present = True
 
-    ret =  OrderedDict({(t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): e.present for t, e in corr.all_edges().items() if e.present})
+    ret = OrderedDict(
+        {
+            (t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): e.present
+            for t, e in corr.edge_dict().items()
+            if e.present
+        }
+    )
     return ret
 
 
@@ -300,6 +319,7 @@ GROUP_COLORS = {
 }
 MLP_COLOR = "#f0f0f0"
 
+
 def ioi_group_colorscheme():
     assert set(GROUP_COLORS.keys()) == set(IOI_CIRCUIT.keys())
 
@@ -312,7 +332,7 @@ def ioi_group_colorscheme():
         scheme[f"<m{i}>"] = MLP_COLOR
 
     for k, heads in IOI_CIRCUIT.items():
-        for (layer, head) in heads:
+        for layer, head in heads:
             for qkv in ["", "_q", "_k", "_v"]:
                 scheme[f"<a{layer}.{head}{qkv}>"] = GROUP_COLORS[k]
 

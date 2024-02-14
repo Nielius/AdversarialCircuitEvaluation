@@ -57,15 +57,17 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Enable the isort rules.
+extend-select = ["I"]
+
 [tool.black]
 # See https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-format
 line-length = 120
 extend-exclude = 'subnetwork_probing/'
-
-[tool.isort]
-profile = "black"
-line_length = 120
-skip_gitignore = true
 
 [tool.pyright]
 exclude = ["subnetwork_probing/transformer_lens"]

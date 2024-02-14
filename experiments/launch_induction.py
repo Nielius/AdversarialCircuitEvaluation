@@ -5,6 +5,7 @@ import numpy as np
 
 CPU = 4
 
+
 def main(
     testing: bool,
     is_adria: bool,
@@ -51,6 +52,7 @@ def main(
         for command in commands:
             print("Running", command)
             subprocess.run(command)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,6 +1,7 @@
-#%%
+# %%
 
 from IPython import get_ipython
+
 ipython = get_ipython()
 if ipython is not None:
     ipython.magic("%load_ext autoreload")
@@ -12,7 +13,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import matplotlib.pyplot as plt
 
-#%%
+# %%
 
 # Set your root directory here
 ROOT_DIR = Path("/home/arthur/Documents/Automatic-Circuit-Discovery")
@@ -28,7 +29,7 @@ assert FPATH.exists(), f"I don't think your FNAME is correct (FPATH = {FPATH})"
 
 # %%
 
-data = json.load(open(FPATH, "r")) 
+data = json.load(open(FPATH, "r"))
 
 # %%
 
@@ -43,6 +44,7 @@ node_fpr = relevant_data["node_fpr"]
 
 # We would just plot these, but sometimes points are not on the Pareto frontier
 
+
 def pareto_optimal_sublist(xs, ys):
     retx, rety = [], []
     for x, y in zip(xs, ys):
@@ -54,6 +56,7 @@ def pareto_optimal_sublist(xs, ys):
             rety.append(y)
     indices = sorted(range(len(retx)), key=lambda i: retx[i])
     return [retx[i] for i in indices], [rety[i] for i in indices]
+
 
 # %%
 
@@ -67,7 +70,7 @@ pareto_node_tpr, pareto_node_fpr = pareto_optimal_sublist(node_tpr, node_fpr)
 plt.figure()
 
 # Plot the ROC curve
-plt.step(pareto_node_fpr, pareto_node_tpr, where='post')
+plt.step(pareto_node_fpr, pareto_node_tpr, where="post")
 
 # Add titles and labels
 plt.title("ROC Curve of number of Nodes recovered by ACDC")

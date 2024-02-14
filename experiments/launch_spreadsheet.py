@@ -14,24 +14,30 @@ METRICS_FOR_TASK = {
 
 CPU = 4
 
-def main(TASKS: list[str], group_name: str, run_name: str, testing: bool, use_kubernetes: bool, reset_networks: bool, abs_value_threshold: bool, use_gpu: bool=True):
+
+def main(
+    TASKS: list[str],
+    group_name: str,
+    run_name: str,
+    testing: bool,
+    use_kubernetes: bool,
+    reset_networks: bool,
+    abs_value_threshold: bool,
+    use_gpu: bool = True,
+):
     NUM_SPACINGS = 5 if reset_networks else 21
     base_thresholds = 10 ** np.linspace(-4, 0, 21)
 
     seed = 486887094
     random.seed(seed)
 
-    wandb_identifier = WandbIdentifier(
-        run_name=run_name,
-        group_name=group_name,
-        project="acdc")
+    wandb_identifier = WandbIdentifier(run_name=run_name, group_name=group_name, project="acdc")
 
     commands: List[List[str]] = []
     for reset_network in [int(reset_networks)]:
         for zero_ablation in [0]:
             for task in TASKS:
                 for metric in METRICS_FOR_TASK[task]:
-
                     if task.startswith("tracr"):
                         # Typical metric value range: 0.0-0.1
                         thresholds = 10 ** np.linspace(-5, -1, 21)
@@ -81,7 +87,7 @@ def main(TASKS: list[str], group_name: str, run_name: str, testing: bool, use_ku
                             raise ValueError("Unknown metric")
                     elif task == "induction":
                         seq_len = 300
-                        num_examples  = 50
+                        num_examples = 50
                         if metric == "kl_div":
                             # Typical metric value range: 0.0-16.0
                             thresholds = base_thresholds

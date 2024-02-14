@@ -2,6 +2,7 @@ from experiments.launcher import KubernetesJob, WandbIdentifier, launch
 import numpy as np
 import random
 
+
 def main(use_kubernetes: bool, testing: bool, CPU: int = 4):
     task = "docstring"
     reset_network = 0

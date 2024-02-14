@@ -6,12 +6,13 @@ import shlex
 import dataclasses
 import wandb
 
+
 @dataclasses.dataclass(frozen=True)
 class KubernetesJob:
     container: str
     cpu: int
     gpu: int
-    mount_training: bool=False
+    mount_training: bool = False
 
     def mount_training_options(self) -> list[str]:
         if not self.mount_training:
@@ -29,7 +30,15 @@ class WandbIdentifier:
     project: str
 
 
-def launch(commands: List[List[str]], name: str, job: Optional[KubernetesJob] = None, check_wandb: Optional[WandbIdentifier]=None, ids_for_worker=range(0, 10000000), synchronous=True, just_print_commands=False):
+def launch(
+    commands: List[List[str]],
+    name: str,
+    job: Optional[KubernetesJob] = None,
+    check_wandb: Optional[WandbIdentifier] = None,
+    ids_for_worker=range(0, 10000000),
+    synchronous=True,
+    just_print_commands=False,
+):
     to_wait: List[Tuple[str, subprocess.Popen, TextIO, TextIO]] = []
 
     assert len(commands) <= 100_000, "Too many commands for 5 digits"
@@ -41,7 +50,6 @@ def launch(commands: List[List[str]], name: str, job: Optional[KubernetesJob] = 
             continue
 
         command_str = shlex.join(command)
-
 
         if check_wandb is not None:
             # HACK this is pretty vulnerable to duplicating work if the same run is launched in close succession,
@@ -103,11 +111,11 @@ def launch(commands: List[List[str]], name: str, job: Optional[KubernetesJob] = 
             )
         i += 1
 
-    for (command, process, out, err) in to_wait:
+    for command, process, out, err in to_wait:
         retcode = process.wait()
-        with open(out.name, 'r') as f:
+        with open(out.name, "r") as f:
             stdout = f.read()
-        with open(err.name, 'r') as f:
+        with open(err.name, "r") as f:
             stderr = f.read()
 
         if retcode != 0 or "nan" in stdout.lower() or "nan" in stderr.lower():

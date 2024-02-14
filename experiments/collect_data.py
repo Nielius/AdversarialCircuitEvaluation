@@ -10,7 +10,7 @@ IS_ADRIA = not str(os.environ.get("CONDA_DEFAULT_ENV")).lower().startswith("arth
 if IS_ADRIA:
     print("WARNING: IS_ADRIA=True, using Adria's Docker container")
 
-#TASKS = ["ioi", "docstring", "greaterthan", "tracr-reverse", "tracr-proportion", "induction"]
+# TASKS = ["ioi", "docstring", "greaterthan", "tracr-reverse", "tracr-proportion", "induction"]
 TASKS = ["ioi", "docstring", "greaterthan", "induction"]
 
 METRICS_FOR_TASK = {
@@ -24,10 +24,10 @@ METRICS_FOR_TASK = {
 
 
 def main(
-    alg: str, 
-    task: str, 
-    job: KubernetesJob, 
-    testing: bool = False, 
+    alg: str,
+    task: str,
+    job: KubernetesJob,
+    testing: bool = False,
     mod_idx=0,
     num_processes=1,
 ):
@@ -38,7 +38,7 @@ def main(
         OUT_RELPATH = Path(".cache") / "plots_data"
         OUT_HOME_DIR = Path(os.environ["HOME"]) / OUT_RELPATH
     else:
-        OUT_RELPATH = Path("experiments/results/arthur_plots_data") # trying to remove extra things from acdc/
+        OUT_RELPATH = Path("experiments/results/arthur_plots_data")  # trying to remove extra things from acdc/
         OUT_HOME_DIR = OUT_RELPATH
 
     assert OUT_HOME_DIR.exists()
@@ -73,7 +73,13 @@ def main(
                 if zero_ablation:
                     command.append("--zero-ablation")
 
-                if alg == "acdc" and task == "greaterthan" and metric == "kl_div" and not zero_ablation and not reset_network:
+                if (
+                    alg == "acdc"
+                    and task == "greaterthan"
+                    and metric == "kl_div"
+                    and not zero_ablation
+                    and not reset_network
+                ):
                     command.append("--ignore-missing-score")
                 commands.append(command)
 
@@ -88,7 +94,7 @@ def main(
         )
 
     else:
-        for command_idx in range(mod_idx, len(commands), num_processes): # commands:
+        for command_idx in range(mod_idx, len(commands), num_processes):  # commands:
             # run 4 in parallel
             command = commands[command_idx]
             print(f"Running command {command_idx} / {len(commands)}")
@@ -112,7 +118,7 @@ mod_idx = args.i
 num_processes = args.n
 
 if __name__ == "__main__":
-    for alg in ["acdc"]: # , "16h", "sp", "canonical"]:
+    for alg in ["acdc"]:  # , "16h", "sp", "canonical"]:
         for task in tasks_for[alg]:
             main(
                 alg,

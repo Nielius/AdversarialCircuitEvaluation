@@ -1,27 +1,30 @@
+import collections
+import math
+from typing import Callable, ContextManager, Dict, List, Optional, Tuple
+
 import torch
+import wandb
 from einops import rearrange
+from torch.utils.checkpoint import checkpoint
+from transformer_lens import HookedTransformer
 from transformer_lens.ActivationCache import ActivationCache
 from transformer_lens.hook_points import HookPoint
-from torch.utils.checkpoint import checkpoint
-import math
 
-import wandb
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
 from acdc.TLACDCEdge import EdgeType, TorchIndex
 from acdc.TLACDCInterpNode import TLACDCInterpNode
 from acdc.acdc_utils import get_edge_stats, get_node_stats
 
-from transformer_lens import HookedTransformer
-
-
-import collections
-from typing import Callable, ContextManager, Dict, List, Optional, Tuple
-import torchviz
 
 def set_ground_truth_edges(canonical_circuit_subgraph: TLACDCCorrespondence, ground_truth_set: set):
-    for (receiver_name, receiver_index, sender_name, sender_index), edge in canonical_circuit_subgraph.all_edges().items():
-        key =(receiver_name, receiver_index.hashable_tuple, sender_name, sender_index.hashable_tuple)
-        edge.present = (key in ground_truth_set)
+    for (
+        receiver_name,
+        receiver_index,
+        sender_name,
+        sender_index,
+    ), edge in canonical_circuit_subgraph.all_edges().items():
+        key = (receiver_name, receiver_index.hashable_tuple, sender_name, sender_index.hashable_tuple)
+        edge.present = key in ground_truth_set
 
 
 def print_stats(recovered_corr, ground_truth_subgraph, do_print=True):
@@ -34,12 +37,14 @@ def print_stats(recovered_corr, ground_truth_subgraph, do_print=True):
     stats = get_node_stats(ground_truth=ground_truth_subgraph, recovered=recovered_corr)
     node_tpr = stats["true positive"] / (stats["true positive"] + stats["false negative"])
     node_fpr = stats["false positive"] / (stats["false positive"] + stats["true negative"])
-    if do_print:print(f"Node TPR: {node_tpr:.3f}. Node FPR: {node_fpr:.3f}")
+    if do_print:
+        print(f"Node TPR: {node_tpr:.3f}. Node FPR: {node_fpr:.3f}")
 
     stats = get_edge_stats(ground_truth=ground_truth_subgraph, recovered=recovered_corr)
     edge_tpr = stats["true positive"] / (stats["true positive"] + stats["false negative"])
     edge_fpr = stats["false positive"] / (stats["false positive"] + stats["true negative"])
-    if do_print:print(f"Edge TPR: {edge_tpr:.3f}. Edge FPR: {edge_fpr:.3f}")
+    if do_print:
+        print(f"Edge TPR: {edge_tpr:.3f}. Edge FPR: {edge_fpr:.3f}")
 
     return {
         "node_tpr": node_tpr,
@@ -48,16 +53,19 @@ def print_stats(recovered_corr, ground_truth_subgraph, do_print=True):
         "edge_fpr": edge_fpr,
     }
 
+
 def iterative_correspondence_from_mask(
     model: HookedTransformer,
-    nodes_to_mask: List[TLACDCInterpNode], # Can be empty
+    nodes_to_mask: List[TLACDCInterpNode],  # Can be empty
     use_pos_embed: bool = False,
     corr: Optional[TLACDCCorrespondence] = None,
     head_parents: Optional[List] = None,
 ) -> Tuple[TLACDCCorrespondence, List]:
     """Given corr has some nodes masked, also mask the nodes_to_mask"""
 
-    assert (corr is None) == (head_parents is None), "Ensure we're either masking from scratch or we provide details on `head_parents`"
+    assert (corr is None) == (
+        head_parents is None
+    ), "Ensure we're either masking from scratch or we provide details on `head_parents`"
 
     if corr is None:
         corr = TLACDCCorrespondence.setup_from_model(model, use_pos_embed=use_pos_embed)
@@ -90,7 +98,9 @@ def iterative_correspondence_from_mask(
                 )
             )
 
-    assert all([v <= 3 for v in head_parents.values()]), "We should have at most three parents (Q, K and V, connected via placeholders)"
+    assert all(
+        [v <= 3 for v in head_parents.values()]
+    ), "We should have at most three parents (Q, K and V, connected via placeholders)"
 
     for node in nodes_to_mask + additional_nodes_to_mask:
         # Mark edges where this is child as not present
@@ -118,13 +128,24 @@ class MaskedTransformer(torch.nn.Module):
       and non-ablated edges from `forward_cache`, then the sum is taken.
     - `caching_hook`s save the output of a node to `forward_cache` for use in later layers.
     """
+
     model: HookedTransformer
     ablation_cache: ActivationCache
     forward_cache: ActivationCache
     mask_logits: torch.nn.ParameterList
     _mask_logits_dict: Dict[str, torch.nn.Parameter]
 
-    def __init__(self, model:HookedTransformer, beta=2 / 3, gamma=-0.1, zeta=1.1, mask_init_p=0.9, use_pos_embed=False, no_ablate=False, verbose=False):
+    def __init__(
+        self,
+        model: HookedTransformer,
+        beta=2 / 3,
+        gamma=-0.1,
+        zeta=1.1,
+        mask_init_p=0.9,
+        use_pos_embed=False,
+        no_ablate=False,
+        verbose=False,
+    ):
         super().__init__()
 
         self.model = model
@@ -142,13 +163,13 @@ class MaskedTransformer(torch.nn.Module):
         # Stores the cache keys that correspond to each mask,
         # e.g. ...1.hook_mlp_in -> ["blocks.0.attn.hook_result", "blocks.0.hook_mlp_out", "blocks.1.attn.hook_result"]
         # Logits are attention in-edges, then MLP in-edges
-        self.parent_node_names:Dict[str, list[str]] = {}
+        self.parent_node_names: Dict[str, list[str]] = {}
 
         self.ablation_cache = ActivationCache({}, self.model)
         self.forward_cache = ActivationCache({}, self.model)
         self.a_cache_tensor = None
         self.f_cache_tensor = None
-        self.cache_indices_dict = {} # Converts a hook name to an integer representing how far to index?
+        self.cache_indices_dict = {}  # Converts a hook name to an integer representing how far to index?
         # Hyperparameters
         self.beta = beta
         self.gamma = gamma
@@ -159,11 +180,10 @@ class MaskedTransformer(torch.nn.Module):
         p = (self.mask_init_p - self.gamma) / (self.zeta - self.gamma)
         self.mask_init_constant = math.log(p / (1 - p))
 
-        model.cfg.use_hook_mlp_in = True # We need to hook the MLP input to do subnetwork probing
+        model.cfg.use_hook_mlp_in = True  # We need to hook the MLP input to do subnetwork probing
 
-        self.embeds = ["hook_embed", "hook_pos_embed"] if self.use_pos_embed else \
-                      ["blocks.0.hook_resid_pre"]
-        
+        self.embeds = ["hook_embed", "hook_pos_embed"] if self.use_pos_embed else ["blocks.0.hook_resid_pre"]
+
         self.forward_cache_names = self.embeds[:]
         self.cache_indices_dict = {name: (i, i + 1) for i, name in enumerate(self.forward_cache_names)}
         self.n_units_so_far = len(self.embeds)
@@ -172,32 +192,32 @@ class MaskedTransformer(torch.nn.Module):
         for layer_i in range(model.cfg.n_layers):
             # QKV: in-edges from all previous layers
             for q_k_v in ["q", "k", "v"]:
-                self._setup_mask_logits(
-                    mask_name=f"blocks.{layer_i}.hook_{q_k_v}_input",
-                    out_dim=self.n_heads)
-                
+                self._setup_mask_logits(mask_name=f"blocks.{layer_i}.hook_{q_k_v}_input", out_dim=self.n_heads)
+
             self.forward_cache_names.append(f"blocks.{layer_i}.attn.hook_result")
-            self.cache_indices_dict[f"blocks.{layer_i}.attn.hook_result"] = (self.n_units_so_far, self.n_units_so_far + self.n_heads)
+            self.cache_indices_dict[f"blocks.{layer_i}.attn.hook_result"] = (
+                self.n_units_so_far,
+                self.n_units_so_far + self.n_heads,
+            )
             self.n_units_so_far += self.n_heads
 
             # MLP: in-edges from all previous layers and current layer's attention heads
             if not model.cfg.attn_only:
-                self._setup_mask_logits(
-                    mask_name = f"blocks.{layer_i}.hook_mlp_in",
-                    out_dim=1)
-                
+                self._setup_mask_logits(mask_name=f"blocks.{layer_i}.hook_mlp_in", out_dim=1)
+
                 self.forward_cache_names.append(f"blocks.{layer_i}.hook_mlp_out")
-                self.cache_indices_dict[f"blocks.{layer_i}.hook_mlp_out"] = (self.n_units_so_far, self.n_units_so_far + 1)
+                self.cache_indices_dict[f"blocks.{layer_i}.hook_mlp_out"] = (
+                    self.n_units_so_far,
+                    self.n_units_so_far + 1,
+                )
                 self.n_units_so_far += 1
 
-        self._setup_mask_logits(
-            mask_name = f"blocks.{model.cfg.n_layers - 1}.hook_resid_post",
-            out_dim=1
-        )
+        self._setup_mask_logits(mask_name=f"blocks.{model.cfg.n_layers - 1}.hook_resid_post", out_dim=1)
 
         print(self.forward_cache_names, self.parent_node_names)
         for ckl in self.parent_node_names.values():
-            for name in ckl: assert name in self.forward_cache_names, f"{name} not in forward cache names"
+            for name in ckl:
+                assert name in self.forward_cache_names, f"{name} not in forward cache names"
 
     @property
     def mask_logits_names(self):
@@ -210,9 +230,9 @@ class MaskedTransformer(torch.nn.Module):
         """
         in_dim = self.n_units_so_far
         self.parent_node_names[mask_name] = self.forward_cache_names[:]
-        self.mask_logits.append(torch.nn.Parameter(
-            torch.full((in_dim, out_dim), self.mask_init_constant, device=self.device)
-        ))
+        self.mask_logits.append(
+            torch.nn.Parameter(torch.full((in_dim, out_dim), self.mask_init_constant, device=self.device))
+        )
         self._mask_logits_dict[mask_name] = self.mask_logits[-1]
 
     def sample_mask(self, mask_name) -> torch.Tensor:
@@ -233,24 +253,22 @@ class MaskedTransformer(torch.nn.Module):
 
     def regularization_loss(self) -> torch.Tensor:
         center = self.beta * math.log(-self.gamma / self.zeta)
-        per_parameter_loss = [
-            torch.sigmoid(scores - center).mean()
-            for scores in self.mask_logits
-        ]
+        per_parameter_loss = [torch.sigmoid(scores - center).mean() for scores in self.mask_logits]
         return torch.mean(torch.stack(per_parameter_loss))
-    
+
     @staticmethod
     def make_4d(x):
-        if x.ndim == 3: return x.unsqueeze(2)
+        if x.ndim == 3:
+            return x.unsqueeze(2)
         return x
 
     def do_zero_caching(self):
-        """Caches zero for every possible mask point.
-        """
-        patch_data = torch.zeros((1, 1), device=self.device, dtype=torch.int64) # batch pos
+        """Caches zero for every possible mask point."""
+        patch_data = torch.zeros((1, 1), device=self.device, dtype=torch.int64)  # batch pos
         self.do_random_resample_caching(patch_data)
-        self.ablation_cache.cache_dict = \
-            {name: torch.zeros_like(scores) for name, scores in self.ablation_cache.cache_dict.items()}
+        self.ablation_cache.cache_dict = {
+            name: torch.zeros_like(scores) for name, scores in self.ablation_cache.cache_dict.items()
+        }
         # self.a_cache_tensor = torch.cat([self.make_4d(self.ablation_cache[name]) for name in self.forward_cache_names], dim=2)
         # self.a_cache_tensor.requires_grad_(False)
 
@@ -263,8 +281,7 @@ class MaskedTransformer(torch.nn.Module):
             # self.a_cache_tensor = torch.cat([self.make_4d(self.ablation_cache[name]) for name in self.forward_cache_names], dim=2)
             # self.a_cache_tensor.requires_grad_(False)
 
-
-    def get_activation_values(self, names, cache:ActivationCache):
+    def get_activation_values(self, names, cache: ActivationCache):
         """
         Returns a single tensor of the mask values used for a given hook.
         Attention is shape batch, seq, heads, head_size while MLP out is batch, seq, d_model
@@ -272,16 +289,17 @@ class MaskedTransformer(torch.nn.Module):
         """
         result = []
         for name in names:
-            value = cache[name] # b s n_heads d, or b s d
-            if value.ndim == 3: value = value.unsqueeze(2) # b s 1 d
+            value = cache[name]  # b s n_heads d, or b s d
+            if value.ndim == 3:
+                value = value.unsqueeze(2)  # b s 1 d
             result.append(value)
         return torch.cat(result, dim=2)
 
     def compute_weighted_values(self, hook: HookPoint):
         names = self.parent_node_names[hook.name]
-        a_values = self.get_activation_values(names, self.ablation_cache) # b s i d
-        f_values = self.get_activation_values(names, self.forward_cache) # b s i d
-        mask = self.sample_mask(hook.name) # in_edges, nodes_per_mask, ...
+        a_values = self.get_activation_values(names, self.ablation_cache)  # b s i d
+        f_values = self.get_activation_values(names, self.forward_cache)  # b s i d
+        mask = self.sample_mask(hook.name)  # in_edges, nodes_per_mask, ...
 
         weighted_a_values = torch.einsum("b s i d, i o -> b s o d", a_values, 1 - mask)
         weighted_f_values = torch.einsum("b s i d, i o -> b s o d", f_values, mask)
@@ -291,19 +309,19 @@ class MaskedTransformer(torch.nn.Module):
         """
         For edge-level SP, we discard the hook_point_out value and resum the residual stream.
         """
-        show=print if verbose else lambda *args, **kwargs: None
+        show = print if verbose else lambda *args, **kwargs: None
         show(f"Doing ablation of {hook.name}")
         mem1 = torch.cuda.memory_allocated()
         show(f"Using memory {mem1:_} bytes at hook start")
-        is_attn = 'mlp' not in hook.name and 'resid_post' not in hook.name
+        is_attn = "mlp" not in hook.name and "resid_post" not in hook.name
 
         # memory optimization
         out = checkpoint(self.compute_weighted_values, hook, use_reentrant=False)
         if not is_attn:
-            out = rearrange(out, 'b s 1 d -> b s d')
+            out = rearrange(out, "b s 1 d -> b s d")
 
-        block_num = int(hook.name.split('.')[1])
-        for layer in self.model.blocks[:block_num if 'mlp' in hook.name else 1]:
+        block_num = int(hook.name.split(".")[1])
+        for layer in self.model.blocks[: block_num if "mlp" in hook.name else 1]:
             out += layer.attn.b_O
 
         if self.no_ablate and not torch.allclose(hook_point_out, out):
@@ -329,12 +347,15 @@ class MaskedTransformer(torch.nn.Module):
         return hook_point_out
 
     def fwd_hooks(self) -> List[Tuple[str, Callable]]:
-        return [(n, self.activation_mask_hook) for n in self.mask_logits_names] + \
-            [(n, self.caching_hook) for n in self.forward_cache_names]
+        return [(n, self.activation_mask_hook) for n in self.mask_logits_names] + [
+            (n, self.caching_hook) for n in self.forward_cache_names
+        ]
 
-    def with_fwd_hooks_and_new_cache(self, ablation='resample', ablation_data=None) -> ContextManager[HookedTransformer]:
-        assert ablation in ['zero', 'resample']
-        if ablation == 'zero':
+    def with_fwd_hooks_and_new_cache(
+        self, ablation="resample", ablation_data=None
+    ) -> ContextManager[HookedTransformer]:
+        assert ablation in ["zero", "resample"]
+        if ablation == "zero":
             self.do_zero_caching()
         else:
             assert ablation_data is not None
@@ -357,20 +378,22 @@ class MaskedTransformer(torch.nn.Module):
         return sum(p.numel() for p in self.mask_logits)
 
 
-def edge_level_corr(masked_model: MaskedTransformer, use_pos_embed:bool=None) -> TLACDCCorrespondence:
+def edge_level_corr(masked_model: MaskedTransformer, use_pos_embed: bool = None) -> TLACDCCorrespondence:
     if use_pos_embed is None:
         use_pos_embed = masked_model.use_pos_embed
     corr = TLACDCCorrespondence.setup_from_model(masked_model.model, use_pos_embed=use_pos_embed)
+
     # Define edges
     def indexes(name):
-        if 'mlp' in name or 'resid' in name or 'embed' in name or name == 'blocks.0.hook_resid_pre':
+        if "mlp" in name or "resid" in name or "embed" in name or name == "blocks.0.hook_resid_pre":
             return [TorchIndex((None,))]
         return [TorchIndex((None, None, i)) for i in range(masked_model.n_heads)]
+
     for child, mask_logits in masked_model._mask_logits_dict.items():
         # Sample mask for this child
         sampled_mask = masked_model.sample_mask(child)
         # print(f"sampled mask for {child} has shape {sampled_mask.shape}")
-        mask_row  = 0
+        mask_row = 0
         for parent in masked_model.parent_node_names[child]:
             for parent_index in indexes(parent):
                 for mask_col, child_index in enumerate(indexes(child)):

@@ -1,22 +1,4 @@
 from collections import OrderedDict
-from acdc.TLACDCEdge import (
-    TorchIndex,
-    Edge, 
-    EdgeType,
-)  # these introduce several important classes !!!
-from acdc.TLACDCInterpNode import TLACDCInterpNode
-import warnings
-from functools import partial
-from copy import deepcopy
-import torch.nn.functional as F
-from typing import List
-from acdc.acdc_utils import kl_divergence
-import torch
-from acdc.ioi.ioi_dataset import IOIDataset  # NOTE: we now import this LOCALLY so it is deterministic
-from tqdm import tqdm
-import wandb
-from transformer_lens.HookedTransformer import HookedTransformer
-import warnings
 from functools import partial
 from typing import ClassVar, Optional
 
@@ -26,36 +8,130 @@ import torch.nn.functional as F
 from acdc.acdc_utils import kl_divergence, TorchIndex
 from acdc.docstring.utils import AllDataThings
 from acdc.ioi.utils import get_gpt2_small
-from collections import OrderedDict
 
 NOUNS = [
-    "abduction", "accord", "affair", "agreement", "appraisal",
-    "assaults", "assessment", "attack", "attempts", "campaign", 
-    "captivity", "case", "challenge", "chaos", "clash", 
-    "collaboration", "coma", "competition", "confrontation", "consequence", 
-    "conspiracy", "construction", "consultation", "contact",
-    "contract", "convention", "cooperation", "custody", "deal", 
-    "decline", "decrease", "demonstrations", "development", "disagreement", 
-    "disorder", "dispute", "domination", "dynasty", "effect", 
-    "effort", "employment", "endeavor", "engagement",
-    "epidemic", "evaluation", "exchange", "existence", "expansion", 
-    "expedition", "experiments", "fall", "fame", "flights",
-    "friendship", "growth", "hardship", "hostility", "illness", 
-    "impact", "imprisonment", "improvement", "incarceration",
-    "increase", "insurgency", "invasion", "investigation", "journey", 
-    "kingdom", "marriage", "modernization", "negotiation",
-    "notoriety", "obstruction", "operation", "order", "outbreak", 
-    "outcome", "overhaul", "patrols", "pilgrimage", "plague",
-    "plan", "practice", "process", "program", "progress", 
-    "project", "pursuit", "quest", "raids", "reforms", 
-    "reign", "relationship",
-    "retaliation", "riot", "rise", "rivalry", "romance", 
-    "rule", "sanctions", "shift", "siege", "slump", 
-    "stature", "stint", "strikes", "study",
-    "test", "testing", "tests", "therapy", "tour", 
-    "tradition", "treaty", "trial", "trip", "unemployment", 
-    "voyage", "warfare", "work",
+    "abduction",
+    "accord",
+    "affair",
+    "agreement",
+    "appraisal",
+    "assaults",
+    "assessment",
+    "attack",
+    "attempts",
+    "campaign",
+    "captivity",
+    "case",
+    "challenge",
+    "chaos",
+    "clash",
+    "collaboration",
+    "coma",
+    "competition",
+    "confrontation",
+    "consequence",
+    "conspiracy",
+    "construction",
+    "consultation",
+    "contact",
+    "contract",
+    "convention",
+    "cooperation",
+    "custody",
+    "deal",
+    "decline",
+    "decrease",
+    "demonstrations",
+    "development",
+    "disagreement",
+    "disorder",
+    "dispute",
+    "domination",
+    "dynasty",
+    "effect",
+    "effort",
+    "employment",
+    "endeavor",
+    "engagement",
+    "epidemic",
+    "evaluation",
+    "exchange",
+    "existence",
+    "expansion",
+    "expedition",
+    "experiments",
+    "fall",
+    "fame",
+    "flights",
+    "friendship",
+    "growth",
+    "hardship",
+    "hostility",
+    "illness",
+    "impact",
+    "imprisonment",
+    "improvement",
+    "incarceration",
+    "increase",
+    "insurgency",
+    "invasion",
+    "investigation",
+    "journey",
+    "kingdom",
+    "marriage",
+    "modernization",
+    "negotiation",
+    "notoriety",
+    "obstruction",
+    "operation",
+    "order",
+    "outbreak",
+    "outcome",
+    "overhaul",
+    "patrols",
+    "pilgrimage",
+    "plague",
+    "plan",
+    "practice",
+    "process",
+    "program",
+    "progress",
+    "project",
+    "pursuit",
+    "quest",
+    "raids",
+    "reforms",
+    "reign",
+    "relationship",
+    "retaliation",
+    "riot",
+    "rise",
+    "rivalry",
+    "romance",
+    "rule",
+    "sanctions",
+    "shift",
+    "siege",
+    "slump",
+    "stature",
+    "stint",
+    "strikes",
+    "study",
+    "test",
+    "testing",
+    "tests",
+    "therapy",
+    "tour",
+    "tradition",
+    "treaty",
+    "trial",
+    "trip",
+    "unemployment",
+    "voyage",
+    "warfare",
+    "work",
 ]
+
 
 # %%
 class GreaterThanConstants:
@@ -92,9 +168,8 @@ class GreaterThanConstants:
             self.YEARS.extend(all_success[1:-1])
             self.YEARS_BY_CENTURY[century] = all_success[1:-1]
 
-        TOKENS = {
-            i: _TOKENIZER.encode(f"{'0' if i<=9 else ''}{i}")[0] for i in range(0, 100)
-        }
+        # These are only the tokens of the years
+        TOKENS = {i: _TOKENIZER.encode(f"{'0' if i<=9 else ''}{i}")[0] for i in range(0, 100)}
         self.INV_TOKENS = {v: k for k, v in TOKENS.items()}
         self.TOKENS = TOKENS
 
@@ -106,20 +181,24 @@ class GreaterThanConstants:
         self.TOKENS_TENSOR = TOKENS_TENSOR
         self.INV_TOKENS_TENSOR = INV_TOKENS_TENSOR
 
+
 def greaterthan_metric_reference(logits, tokens):
     constants = GreaterThanConstants.get(logits.device)
 
-    probs = F.softmax(logits[:, -1], dim=-1) # last elem???
+    probs = F.softmax(logits[:, -1], dim=-1)  # last elem???
+
     ans = 0.0
     for i in range(len(probs)):
-        yearend = constants.INV_TOKENS[tokens[i][7].item()]
-        for year_suff in range(yearend+1, 100):
+        # Calculate sum of probabilities for correct years, minus sum of probabilities of bad years
+        yearend = constants.INV_TOKENS[tokens[i][7].item()]  # the 7th token is the original year
+        for year_suff in range(yearend + 1, 100):
             ans += probs[i, constants.TOKENS[year_suff]]
-        for year_pref in range(0, yearend+1):
+        for year_pref in range(0, yearend + 1):
             ans -= probs[i, constants.TOKENS[year_pref]]
-    return - float(ans / len(probs))
+    return -float(ans / len(probs))
 
-def greaterthan_metric(logits, tokens, return_one_element: bool=True):
+
+def greaterthan_metric(logits, tokens, return_one_element: bool = True):
     constants = GreaterThanConstants.get(logits.device)
 
     probs = F.softmax(logits[:, -1], dim=-1)
@@ -132,9 +211,9 @@ def greaterthan_metric(logits, tokens, return_one_element: bool=True):
     # Before: negative term
     negative = torch.where(yearend == 0, torch.zeros((), device=csum.device), csum[range, yearend])
     if return_one_element:
-        return - (positive - 2*negative).mean()
+        return -(positive - 2 * negative).mean()
     else:
-        return - (positive - 2*negative)
+        return -(positive - 2 * negative)
 
 
 def get_year_data(num_examples, model):
@@ -155,18 +234,23 @@ def get_year_data(num_examples, model):
             template.format(
                 noun=NOUNS[nouns_perm[i]],
                 year1=year,
-            ) + year[:2]
+            )
+            + year[:2]
         )
         prompts_tokenized.append(model.tokenizer.encode(prompts[-1], return_tensors="pt").to(model.cfg.device))
-        assert prompts_tokenized[-1].shape == prompts_tokenized[0].shape, (prompts_tokenized[-1].shape, prompts_tokenized[0].shape)
+        assert prompts_tokenized[-1].shape == prompts_tokenized[0].shape, (
+            prompts_tokenized[-1].shape,
+            prompts_tokenized[0].shape,
+        )
     prompts_tokenized = torch.cat(prompts_tokenized, dim=0)
     assert len(prompts_tokenized.shape) == 2, prompts_tokenized.shape
 
     return prompts_tokenized, prompts
 
+
 def get_all_greaterthan_things(num_examples, metric_name, device="cuda"):
     model = get_gpt2_small(device=device)
-    data, prompts = get_year_data(num_examples*2, model)
+    data, prompts = get_year_data(num_examples * 2, model)
     patch_data = data.clone()
     patch_data[:, 7] = 486  # replace with 01
 
@@ -215,7 +299,8 @@ def get_all_greaterthan_things(num_examples, metric_name, device="cuda"):
         test_data=test_data,
         test_labels=None,
         test_mask=None,
-        test_patch_data=test_patch_data)
+        test_patch_data=test_patch_data,
+    )
 
 
 CIRCUIT = {
@@ -228,14 +313,15 @@ CIRCUIT = {
     # output special case
 }
 
+
 def get_greaterthan_true_edges(model):
     from subnetwork_probing.train import iterative_correspondence_from_mask
 
     corr, _ = iterative_correspondence_from_mask(
         model=model,
-        nodes_to_mask = [],
+        nodes_to_mask=[],
     )
-    for t, e in corr.all_edges().items():
+    for t, e in corr.edge_dict().items():
         e.present = False
 
     connected_pairs = [
@@ -279,30 +365,39 @@ def get_greaterthan_true_edges(model):
 
     # MLPs are interconnected
     for GROUP in CIRCUIT.keys():
-        if CIRCUIT[GROUP][0][1] is not None: continue
+        if CIRCUIT[GROUP][0][1] is not None:
+            continue
         for i1, j1 in CIRCUIT[GROUP]:
             for i2, j2 in CIRCUIT[GROUP]:
-                if i1 >= i2: continue
-                corr.edges[f"blocks.{i2}.hook_mlp_in"][TorchIndex([None])][f"blocks.{i1}.hook_mlp_out"][TorchIndex([None])].present = True
+                if i1 >= i2:
+                    continue
+                corr.edges[f"blocks.{i2}.hook_mlp_in"][TorchIndex([None])][f"blocks.{i1}.hook_mlp_out"][
+                    TorchIndex([None])
+                ].present = True
 
-    # connected pairs  
+    # connected pairs
     for GROUP1, GROUP2 in connected_pairs:
         for i1, j1 in CIRCUIT[GROUP1]:
             for i2, j2 in CIRCUIT[GROUP2]:
-                if i1 >= i2 and not (i1==i2 and j1 is not None and j2 is None):
+                if i1 >= i2 and not (i1 == i2 and j1 is not None and j2 is None):
                     continue
                 for ii, jj in tuple_to_hooks(i1, j1, outp=True):
-                    for iii, jjj in tuple_to_hooks(i2, j2, outp=False): # oh god I am so sorry poor code reade
+                    for iii, jjj in tuple_to_hooks(i2, j2, outp=False):  # oh god I am so sorry poor code reade
                         corr.edges[iii][jjj][ii][jj].present = True
 
     # Connect qkv to heads
-    for (layer, head) in sum(CIRCUIT.values(), start=[]):
-        if head is None: continue
+    for layer, head in sum(CIRCUIT.values(), start=[]):
+        if head is None:
+            continue
         for letter in "qkv":
-            e = corr.edges[f"blocks.{layer}.attn.hook_{letter}"][TorchIndex([None, None, head])][f"blocks.{layer}.hook_{letter}_input"][TorchIndex([None, None, head])]
+            e = corr.edges[f"blocks.{layer}.attn.hook_{letter}"][TorchIndex([None, None, head])][
+                f"blocks.{layer}.hook_{letter}_input"
+            ][TorchIndex([None, None, head])]
             e.present = True
             # print(e.edge_type)
-            e = corr.edges[f"blocks.{layer}.attn.hook_result"][TorchIndex([None, None, head])][f"blocks.{layer}.attn.hook_{letter}"][TorchIndex([None, None, head])]
+            e = corr.edges[f"blocks.{layer}.attn.hook_result"][TorchIndex([None, None, head])][
+                f"blocks.{layer}.attn.hook_{letter}"
+            ][TorchIndex([None, None, head])]
             e.present = True
             # print(e.edge_type)
 
@@ -311,15 +406,25 @@ def get_greaterthan_true_edges(model):
     MAX_AMID_LAYER = max([layer_idx for layer_idx, head_idx in CIRCUIT["AMID"]])
     # connect all MLPs before the AMID heads
     for mlp_sender_layer in range(0, MAX_AMID_LAYER):
-        for mlp_receiver_layer in range(1+mlp_sender_layer, MAX_AMID_LAYER):
-            corr.edges[f"blocks.{mlp_receiver_layer}.hook_mlp_in"][TorchIndex([None])][f"blocks.{mlp_sender_layer}.hook_mlp_out"][TorchIndex([None])].present = True
-    
+        for mlp_receiver_layer in range(1 + mlp_sender_layer, MAX_AMID_LAYER):
+            corr.edges[f"blocks.{mlp_receiver_layer}.hook_mlp_in"][TorchIndex([None])][
+                f"blocks.{mlp_sender_layer}.hook_mlp_out"
+            ][TorchIndex([None])].present = True
+
     # connect all early MLPs to AMID heads
     for layer_idx, head_idx in CIRCUIT["AMID"]:
         for mlp_sender_layer in range(0, layer_idx):
-            corr.edges[f"blocks.{layer_idx}.hook_q_input"][TorchIndex([None, None, head_idx])][f"blocks.{mlp_sender_layer}.hook_mlp_out"][TorchIndex([None])].present = True
+            corr.edges[f"blocks.{layer_idx}.hook_q_input"][TorchIndex([None, None, head_idx])][
+                f"blocks.{mlp_sender_layer}.hook_mlp_out"
+            ][TorchIndex([None])].present = True
 
-    ret =  OrderedDict({(t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): e.present for t, e in corr.all_edges().items() if e.present})
+    ret = OrderedDict(
+        {
+            (t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): edge.present
+            for t, edge in corr.edge_dict().items()
+            if edge.present
+        }
+    )
     return ret
 
 
@@ -331,6 +436,7 @@ GROUP_COLORS = {
     "MLATE": "#fff6db",
 }
 MLP_COLOR = "#f0f0f0"
+
 
 def greaterthan_group_colorscheme():
     assert set(GROUP_COLORS.keys()) == set(CIRCUIT.keys())
@@ -344,7 +450,7 @@ def greaterthan_group_colorscheme():
         scheme[f"<m{i}>"] = MLP_COLOR
 
     for k, heads in CIRCUIT.items():
-        for (layer, head) in heads:
+        for layer, head in heads:
             if head is None:
                 scheme[f"<m{layer}>"] = GROUP_COLORS[k]
             else:
