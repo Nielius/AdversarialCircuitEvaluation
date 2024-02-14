@@ -1,13 +1,13 @@
 import torch
+from transformer_lens.HookedTransformer import (
+    HookedTransformer as LegacyHookedTransformer,
+)
+from transformer_lens.HookedTransformerConfig import (
+    HookedTransformerConfig as LegacyHookedTransformerConfig,
+)
 
 from acdc.docstring.utils import get_all_docstring_things
 from subnetwork_probing.train import MaskedTransformer
-from subnetwork_probing.transformer_lens.transformer_lens.HookedTransformer import (
-    HookedTransformer as LegacyHookedTransformer,
-)
-from subnetwork_probing.transformer_lens.transformer_lens.HookedTransformerConfig import (
-    HookedTransformerConfig as LegacyHookedTransformerConfig,
-)
 
 
 def do_random_resample_caching(model: LegacyHookedTransformer, train_data: torch.Tensor) -> torch.Tensor:
