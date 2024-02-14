@@ -1,7 +1,7 @@
-from experiments.launcher import KubernetesJob, WandbIdentifier, launch
-import numpy as np
 import random
 from typing import List
+
+from experiments.launcher import KubernetesJob, WandbIdentifier, launch
 
 METRICS_FOR_TASK = {
     "ioi": ["kl_div", "logit_diff"],
@@ -20,7 +20,9 @@ def main(TASKS: list[str], job: KubernetesJob, name: str, group_name: str):
     seed = 1259281515
     random.seed(seed)
 
-    wandb_identifier = WandbIdentifier(run_name=f"{name}-{{i:05d}}", group_name=group_name, project="acdc")
+    wandb_identifier = WandbIdentifier(
+        run_name=f"{name}-{{i:05d}}", group_name=group_name, project="acdc"
+    )
 
     commands: List[List[str]] = []
     for reset_network in [0, 1]:
@@ -30,7 +32,11 @@ def main(TASKS: list[str], job: KubernetesJob, name: str, group_name: str):
                     if "tracr" not in task:
                         if reset_network == 0 and zero_ablation == 0:
                             continue
-                        if task in ["ioi", "induction"] and reset_network == 0 and zero_ablation == 1:
+                        if (
+                            task in ["ioi", "induction"]
+                            and reset_network == 0
+                            and zero_ablation == 1
+                        ):
                             continue
 
                     command = [
@@ -46,7 +52,7 @@ def main(TASKS: list[str], job: KubernetesJob, name: str, group_name: str):
                         f"--metric={metric}",
                         f"--torch-num-threads={CPU}",
                         "--wandb-dir=/root/.cache/huggingface/tracr-training/16heads",  # If it doesn't exist wandb will use /tmp
-                        f"--wandb-mode=online",
+                        "--wandb-mode=online",
                     ]
                     if zero_ablation:
                         command.append("--zero-ablation")
@@ -67,7 +73,11 @@ if __name__ == "__main__":
     main(
         # ["ioi", "greaterthan", "induction", "docstring"],
         ["tracr-reverse"],
-        KubernetesJob(container="ghcr.io/rhaps0dy/automatic-circuit-discovery:1.7.1", cpu=CPU, gpu=0),
+        KubernetesJob(
+            container="ghcr.io/rhaps0dy/automatic-circuit-discovery:1.7.1",
+            cpu=CPU,
+            gpu=0,
+        ),
         "16h-redo",
         group_name="sixteen-heads",
     )

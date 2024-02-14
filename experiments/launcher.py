@@ -1,10 +1,8 @@
-from pathlib import Path
-import subprocess
-from typing import Optional, TextIO, List, Tuple
-import numpy as np
-import shlex
 import dataclasses
-import wandb
+import shlex
+import subprocess
+from pathlib import Path
+from typing import List, Optional, TextIO, Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -46,7 +44,9 @@ def launch(
     print(f"Launching {len(commands)} jobs")
     for i, command in enumerate(commands):
         if i not in ids_for_worker:
-            print(f"Skipping {name} because it's not my turn, {i} not in {ids_for_worker}")
+            print(
+                f"Skipping {name} because it's not my turn, {i} not in {ids_for_worker}"
+            )
             continue
 
         command_str = shlex.join(command)

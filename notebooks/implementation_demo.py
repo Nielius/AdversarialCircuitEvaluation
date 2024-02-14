@@ -12,8 +12,6 @@
 # %%
 
 try:
-    import google.colab
-
     IN_COLAB = True
     print("Running as a Colab notebook")
 
@@ -31,11 +29,10 @@ try:
         "install git+https://github.com/ArthurConmy/Automatic-Circuit-Discovery.git@d89f7fa9cbd095202f3940c889cb7c6bf5a9b516",
     )
 
-except Exception as e:
+except Exception:
     IN_COLAB = False
     print("Running outside of Colab notebook")
 
-    import numpy  # crucial to not get cursed error
     import plotly
 
     plotly.io.renderers.default = "colab"  # added by Arthur so running as a .py notebook with #%% generates .ipynb notebooks that display in colab
@@ -69,15 +66,14 @@ except Exception as e:
 
 # %%
 
-import pygraphviz as pgv
-import numpy as np
 import subprocess
+
+from IPython.display import Image, display
 from transformer_lens import HookedTransformer
-from acdc.TLACDCExperiment import TLACDCExperiment, TLACDCCorrespondence
-from acdc.TLACDCEdge import TorchIndex
+
 from acdc.acdc_graphics import show
-import torch
-from IPython.display import display, Image
+from acdc.TLACDCEdge import TorchIndex
+from acdc.TLACDCExperiment import TLACDCCorrespondence
 
 # %% [markdown]
 #
@@ -124,8 +120,12 @@ null_index = TorchIndex([None])
 
 # We're using ACDC code to pretend these edges have an effect size (this notebook is just for vizualization purposes)
 
-correspondence.edges[end_state_name][null_index][head_name][head_index].effect_size = 1.0
-correspondence.edges[end_state_name][null_index][embeds_name][null_index].effect_size = 1.0
+correspondence.edges[end_state_name][null_index][head_name][
+    head_index
+].effect_size = 1.0
+correspondence.edges[end_state_name][null_index][embeds_name][
+    null_index
+].effect_size = 1.0
 
 # %%
 
@@ -133,7 +133,14 @@ correspondence.edges[end_state_name][null_index][embeds_name][null_index].effect
 
 
 def show_corr(corr):
-    show(corr, "correspondence.png", show_full_index=True, edge_type_colouring=True, seed=42, show_placeholders=True)
+    show(
+        corr,
+        "correspondence.png",
+        show_full_index=True,
+        edge_type_colouring=True,
+        seed=42,
+        show_placeholders=True,
+    )
     display(Image("correspondence.png"))
 
 
@@ -147,7 +154,9 @@ show_corr(correspondence)
 # %%
 
 for letter in "qkv":
-    e = correspondence.edges[head_name][head_index][f"blocks.0.attn.hook_{letter}"][head_index]
+    e = correspondence.edges[head_name][head_index][f"blocks.0.attn.hook_{letter}"][
+        head_index
+    ]
     e.effect_size = 1.0
 
 # %%
@@ -169,7 +178,9 @@ show_corr(correspondence)
 # %%
 
 for letter in "qkv":
-    e = correspondence.edges[f"blocks.0.attn.hook_{letter}"][head_index][f"blocks.0.hook_{letter}_input"][head_index]
+    e = correspondence.edges[f"blocks.0.attn.hook_{letter}"][head_index][
+        f"blocks.0.hook_{letter}_input"
+    ][head_index]
     e.effect_size = 1.0
 
 show_corr(correspondence)

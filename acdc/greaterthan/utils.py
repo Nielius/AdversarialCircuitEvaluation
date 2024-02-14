@@ -5,7 +5,7 @@ from typing import ClassVar, Optional
 import torch
 import torch.nn.functional as F
 
-from acdc.acdc_utils import kl_divergence, TorchIndex
+from acdc.acdc_utils import TorchIndex, kl_divergence
 from acdc.docstring.utils import AllDataThings
 from acdc.ioi.utils import get_gpt2_small
 
@@ -162,18 +162,25 @@ class GreaterThanConstants:
             all_success = []
             for year in range(century * 100 + 2, (century * 100) + 99):
                 a = _TOKENIZER.encode(f" {year}")
-                if a == [_TOKENIZER.encode(f" {str(year)[:2]}")[0], _TOKENIZER.encode(str(year)[2:])[0]]:
+                if a == [
+                    _TOKENIZER.encode(f" {str(year)[:2]}")[0],
+                    _TOKENIZER.encode(str(year)[2:])[0],
+                ]:
                     all_success.append(str(year))
                     continue
             self.YEARS.extend(all_success[1:-1])
             self.YEARS_BY_CENTURY[century] = all_success[1:-1]
 
         # These are only the tokens of the years
-        TOKENS = {i: _TOKENIZER.encode(f"{'0' if i<=9 else ''}{i}")[0] for i in range(0, 100)}
+        TOKENS = {
+            i: _TOKENIZER.encode(f"{'0' if i<=9 else ''}{i}")[0] for i in range(0, 100)
+        }
         self.INV_TOKENS = {v: k for k, v in TOKENS.items()}
         self.TOKENS = TOKENS
 
-        TOKENS_TENSOR = torch.as_tensor([TOKENS[i] for i in range(0, 100)], dtype=torch.long)
+        TOKENS_TENSOR = torch.as_tensor(
+            [TOKENS[i] for i in range(0, 100)], dtype=torch.long
+        )
         INV_TOKENS_TENSOR = torch.zeros(50290, dtype=torch.long)
         for i, v in enumerate(TOKENS_TENSOR):
             INV_TOKENS_TENSOR[v] = i
@@ -190,7 +197,9 @@ def greaterthan_metric_reference(logits, tokens):
     ans = 0.0
     for i in range(len(probs)):
         # Calculate sum of probabilities for correct years, minus sum of probabilities of bad years
-        yearend = constants.INV_TOKENS[tokens[i][7].item()]  # the 7th token is the original year
+        yearend = constants.INV_TOKENS[
+            tokens[i][7].item()
+        ]  # the 7th token is the original year
         for year_suff in range(yearend + 1, 100):
             ans += probs[i, constants.TOKENS[year_suff]]
         for year_pref in range(0, yearend + 1):
@@ -209,7 +218,9 @@ def greaterthan_metric(logits, tokens, return_one_element: bool = True):
     range = torch.arange(len(yearend))
     positive = csum[:, -1]
     # Before: negative term
-    negative = torch.where(yearend == 0, torch.zeros((), device=csum.device), csum[range, yearend])
+    negative = torch.where(
+        yearend == 0, torch.zeros((), device=csum.device), csum[range, yearend]
+    )
     if return_one_element:
         return -(positive - 2 * negative).mean()
     else:
@@ -237,7 +248,11 @@ def get_year_data(num_examples, model):
             )
             + year[:2]
         )
-        prompts_tokenized.append(model.tokenizer.encode(prompts[-1], return_tensors="pt").to(model.cfg.device))
+        prompts_tokenized.append(
+            model.tokenizer.encode(prompts[-1], return_tensors="pt").to(
+                model.cfg.device
+            )
+        )
         assert prompts_tokenized[-1].shape == prompts_tokenized[0].shape, (
             prompts_tokenized[-1].shape,
             prompts_tokenized[0].shape,
@@ -337,7 +352,12 @@ def get_greaterthan_true_edges(model):
             if head_idx is None:
                 return [(f"blocks.{layer_idx}.hook_mlp_out", TorchIndex([None]))]
             else:
-                return [(f"blocks.{layer_idx}.attn.hook_result", TorchIndex([None, None, head_idx]))]
+                return [
+                    (
+                        f"blocks.{layer_idx}.attn.hook_result",
+                        TorchIndex([None, None, head_idx]),
+                    )
+                ]
 
         else:
             if head_idx is None:
@@ -345,7 +365,12 @@ def get_greaterthan_true_edges(model):
             else:
                 ret = []
                 for letter in "qkv":
-                    ret.append((f"blocks.{layer_idx}.hook_{letter}_input", TorchIndex([None, None, head_idx])))
+                    ret.append(
+                        (
+                            f"blocks.{layer_idx}.hook_{letter}_input",
+                            TorchIndex([None, None, head_idx]),
+                        )
+                    )
                 return ret
 
     # attach input
@@ -354,14 +379,18 @@ def get_greaterthan_true_edges(model):
             inps = tuple_to_hooks(i, j, outp=False)
 
             for hook_name, index in inps:
-                corr.edges[hook_name][index]["blocks.0.hook_resid_pre"][TorchIndex([None])].present = True
+                corr.edges[hook_name][index]["blocks.0.hook_resid_pre"][
+                    TorchIndex([None])
+                ].present = True
 
     # attach output
     for GROUP in ["AMID", "MLATE"]:
         for i, j in CIRCUIT[GROUP]:
             outps = tuple_to_hooks(i, j, outp=True)
             for hook_name, index in outps:
-                corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][hook_name][index].present = True
+                corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][hook_name][
+                    index
+                ].present = True
 
     # MLPs are interconnected
     for GROUP in CIRCUIT.keys():
@@ -371,9 +400,9 @@ def get_greaterthan_true_edges(model):
             for i2, j2 in CIRCUIT[GROUP]:
                 if i1 >= i2:
                     continue
-                corr.edges[f"blocks.{i2}.hook_mlp_in"][TorchIndex([None])][f"blocks.{i1}.hook_mlp_out"][
-                    TorchIndex([None])
-                ].present = True
+                corr.edges[f"blocks.{i2}.hook_mlp_in"][TorchIndex([None])][
+                    f"blocks.{i1}.hook_mlp_out"
+                ][TorchIndex([None])].present = True
 
     # connected pairs
     for GROUP1, GROUP2 in connected_pairs:
@@ -382,7 +411,9 @@ def get_greaterthan_true_edges(model):
                 if i1 >= i2 and not (i1 == i2 and j1 is not None and j2 is None):
                     continue
                 for ii, jj in tuple_to_hooks(i1, j1, outp=True):
-                    for iii, jjj in tuple_to_hooks(i2, j2, outp=False):  # oh god I am so sorry poor code reade
+                    for iii, jjj in tuple_to_hooks(
+                        i2, j2, outp=False
+                    ):  # oh god I am so sorry poor code reade
                         corr.edges[iii][jjj][ii][jj].present = True
 
     # Connect qkv to heads
@@ -390,14 +421,14 @@ def get_greaterthan_true_edges(model):
         if head is None:
             continue
         for letter in "qkv":
-            e = corr.edges[f"blocks.{layer}.attn.hook_{letter}"][TorchIndex([None, None, head])][
-                f"blocks.{layer}.hook_{letter}_input"
-            ][TorchIndex([None, None, head])]
+            e = corr.edges[f"blocks.{layer}.attn.hook_{letter}"][
+                TorchIndex([None, None, head])
+            ][f"blocks.{layer}.hook_{letter}_input"][TorchIndex([None, None, head])]
             e.present = True
             # print(e.edge_type)
-            e = corr.edges[f"blocks.{layer}.attn.hook_result"][TorchIndex([None, None, head])][
-                f"blocks.{layer}.attn.hook_{letter}"
-            ][TorchIndex([None, None, head])]
+            e = corr.edges[f"blocks.{layer}.attn.hook_result"][
+                TorchIndex([None, None, head])
+            ][f"blocks.{layer}.attn.hook_{letter}"][TorchIndex([None, None, head])]
             e.present = True
             # print(e.edge_type)
 
@@ -414,9 +445,11 @@ def get_greaterthan_true_edges(model):
     # connect all early MLPs to AMID heads
     for layer_idx, head_idx in CIRCUIT["AMID"]:
         for mlp_sender_layer in range(0, layer_idx):
-            corr.edges[f"blocks.{layer_idx}.hook_q_input"][TorchIndex([None, None, head_idx])][
-                f"blocks.{mlp_sender_layer}.hook_mlp_out"
-            ][TorchIndex([None])].present = True
+            corr.edges[f"blocks.{layer_idx}.hook_q_input"][
+                TorchIndex([None, None, head_idx])
+            ][f"blocks.{mlp_sender_layer}.hook_mlp_out"][
+                TorchIndex([None])
+            ].present = True
 
     ret = OrderedDict(
         {

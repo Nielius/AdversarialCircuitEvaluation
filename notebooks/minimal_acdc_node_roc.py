@@ -6,18 +6,19 @@ ipython = get_ipython()
 if ipython is not None:
     ipython.magic("%load_ext autoreload")
     ipython.magic("%autoreload 2")
-import os
-from pathlib import Path
 import json
-import plotly.graph_objects as go
-import plotly.express as px
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 # %%
 
 # Set your root directory here
 ROOT_DIR = Path("/home/arthur/Documents/Automatic-Circuit-Discovery")
-assert ROOT_DIR.exists(), f"I don't think your ROOT_DIR is correct (ROOT_DIR = {ROOT_DIR})"
+assert (
+    ROOT_DIR.exists()
+), f"I don't think your ROOT_DIR is correct (ROOT_DIR = {ROOT_DIR})"
 
 # %%
 

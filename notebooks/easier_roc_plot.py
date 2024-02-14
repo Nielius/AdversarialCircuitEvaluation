@@ -1,20 +1,15 @@
 # %%
 #
-import plotly
-import os
-import numpy as np
 import json
-import wandb
-import time
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
+import os
 from pathlib import Path
-import plotly.express as px
-import pandas as pd
-import argparse
-import plotly.colors as pc
-from acdc.graphics import dict_merge, pessimistic_auc
 
+import numpy as np
+import plotly.colors as pc
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+from acdc.graphics import dict_merge
 from notebooks.emacs_plotly_render import set_plotly_renderer
 
 set_plotly_renderer("emacs")
@@ -46,7 +41,13 @@ def discard_non_pareto_optimal(points, cmp="gt"):
     return list(sorted(ret))
 
 
-fig = make_subplots(rows=1, cols=2, subplot_titles=["ROC Curves"], column_widths=[0.95, 0.05], horizontal_spacing=0.03)
+fig = make_subplots(
+    rows=1,
+    cols=2,
+    subplot_titles=["ROC Curves"],
+    column_widths=[0.95, 0.05],
+    horizontal_spacing=0.03,
+)
 
 colorscales = {
     "ACDC": "Blues",
@@ -134,6 +135,16 @@ for i, alg in enumerate(["ACDC", "SP"]):
         col=2,
     )
 
-fig.update_xaxes(showline=False, zeroline=False, showgrid=False, row=1, col=2, showticklabels=False, ticks="")
-fig.update_yaxes(showline=False, zeroline=False, showgrid=False, row=1, col=2, side="right")
+fig.update_xaxes(
+    showline=False,
+    zeroline=False,
+    showgrid=False,
+    row=1,
+    col=2,
+    showticklabels=False,
+    ticks="",
+)
+fig.update_yaxes(
+    showline=False, zeroline=False, showgrid=False, row=1, col=2, side="right"
+)
 fig.show()

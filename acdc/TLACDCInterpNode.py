@@ -1,9 +1,10 @@
+# these introduce several important classes !!!
+from typing import List, Tuple
+
 from acdc.TLACDCEdge import (
-    TorchIndex,
-    EdgeInfo,
     EdgeType,
-)  # these introduce several important classes !!!
-from typing import List, Dict, Optional, Tuple, Union, Set, Callable, TypeVar, Iterable, Any
+    TorchIndex,
+)
 
 
 class TLACDCInterpNode:
@@ -38,7 +39,11 @@ class TLACDCInterpNode:
         return f"TLACDCInterpNode({self.name}, {self.index})"
 
     def __str__(self) -> str:
-        index_str = "" if len(self.index.hashable_tuple) < 3 else f"_{self.index.hashable_tuple[2]}"
+        index_str = (
+            ""
+            if len(self.index.hashable_tuple) < 3
+            else f"_{self.index.hashable_tuple[2]}"
+        )
         return f"{self.name}{self.index}"
 
 
@@ -59,7 +64,9 @@ def parse_interpnode(s: str) -> TLACDCInterpNode:
             except:
                 idx = None
         return TLACDCInterpNode(
-            name, TorchIndex([None, None, idx]) if idx is not None else TorchIndex([None]), EdgeType.ADDITION
+            name,
+            TorchIndex([None, None, idx]) if idx is not None else TorchIndex([None]),
+            EdgeType.ADDITION,
         )
 
     except Exception as e:
@@ -79,7 +86,10 @@ def heads_to_nodes_to_mask(heads: List[Tuple[int, int]], return_dict=False):
         for inputting in [True, False]
     ]
     nodes_to_mask_strings.extend(
-        [f"blocks.{layer_idx}.attn.hook_result[COL, COL, {head_idx}]" for layer_idx, head_idx in heads]
+        [
+            f"blocks.{layer_idx}.attn.hook_result[COL, COL, {head_idx}]"
+            for layer_idx, head_idx in heads
+        ]
     )
 
     if return_dict:

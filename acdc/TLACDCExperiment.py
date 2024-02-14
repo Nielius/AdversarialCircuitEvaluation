@@ -6,23 +6,23 @@ from argparse import Namespace
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Optional, Literal, List, Dict, Tuple, Union, TypeVar
+from typing import Callable, Dict, List, Literal, Optional, Tuple, TypeVar, Union
 
 import torch
-import wandb
 from transformer_lens.HookedTransformer import HookedTransformer
 
+import wandb
+from acdc.acdc_graphics import log_metrics_to_wandb, show
+from acdc.acdc_utils import extract_info, next_key, shuffle_tensor
+from acdc.global_cache import GlobalCache
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
 from acdc.TLACDCEdge import (
-    TorchIndex,
     EdgeType,
-)  # these introduce several important classes !!!
+    TorchIndex,
+)
+
+# these introduce several important classes !!!
 from acdc.TLACDCInterpNode import TLACDCInterpNode
-from acdc.acdc_graphics import log_metrics_to_wandb
-from acdc.acdc_graphics import show
-from acdc.acdc_utils import extract_info, shuffle_tensor
-from acdc.acdc_utils import next_key
-from acdc.global_cache import GlobalCache
 
 # some types that will help
 TorchIndexHashableTuple = Tuple[Union[None, slice], ...]
@@ -858,7 +858,7 @@ class TLACDCExperiment:
                             "acdc_graph": wandb.Image(fname),
                         }
                     )
-                except Exception as e:
+                except Exception:
                     pass  # Usually a race condition when running many jobs. It's fine to not log an image.
 
         # increment the current node

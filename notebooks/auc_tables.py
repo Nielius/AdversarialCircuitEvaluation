@@ -6,19 +6,21 @@ ipython = get_ipython()
 if ipython is not None:
     ipython.run_line_magic("load_ext", "autoreload")
     ipython.run_line_magic("autoreload", "2")
-import io
-import numpy as np
-
-import pandas as pd
-from pathlib import Path
-from tabulate import tabulate
 import argparse
+import io
+
+import numpy as np
+import pandas as pd
 
 parser = argparse.ArgumentParser(
     usage="Generate AUC tables from CSV files. Pass the data.csv file as an argument fname, e.g python notebooks/auc_tables.py --fname=experiments/results/plots/data.csv"
 )
-parser.add_argument("--in-fname", type=str, default="experiments/results/plots/data.csv")
-parser.add_argument("--out-fname", type=str, default="experiments/results/auc_tables.tex")
+parser.add_argument(
+    "--in-fname", type=str, default="experiments/results/plots/data.csv"
+)
+parser.add_argument(
+    "--out-fname", type=str, default="experiments/results/auc_tables.tex"
+)
 
 if ipython is None:
     args = parser.parse_args()
@@ -32,8 +34,12 @@ with io.StringIO() as buf:
     for key in ["auc"]:  # ["test_kl_div", "test_loss", "auc"]:
         for weights_type in ["trained"]:  # ["reset", "trained"]
             df = data[(data["weights_type"] == weights_type)]
-            df = df.replace({"metric": df.metric.map(lambda x: "other" if x != "kl_div" else x)})
-            df = df.drop_duplicates(subset=["task", "method", "metric", "ablation_type", "plot_type"])
+            df = df.replace(
+                {"metric": df.metric.map(lambda x: "other" if x != "kl_div" else x)}
+            )
+            df = df.drop_duplicates(
+                subset=["task", "method", "metric", "ablation_type", "plot_type"]
+            )
 
             def process_metric_pretty(row):
                 if row["metric"] == "kl_div":
@@ -43,7 +49,9 @@ with io.StringIO() as buf:
 
             df["metric_pretty"] = df.apply(process_metric_pretty, axis=1)
             out = df.drop("Unnamed: 0", axis=1).pivot_table(
-                index=["metric_pretty", "task"], columns=["ablation_type", "plot_type", "method"], values=key
+                index=["metric_pretty", "task"],
+                columns=["ablation_type", "plot_type", "method"],
+                values=key,
             )
             # Needed to handle non-AUC keys
             # out = out.applymap(lambda x: None if x == -1 else (texts[x] if isinstance(x, int) else x))
@@ -60,7 +68,11 @@ with io.StringIO() as buf:
                                 out,
                                 pd.Series(
                                     data=[
-                                        f"\\textbf{{{x:.3f}}}" if x == the_max else f"{x:.3f}"
+                                        (
+                                            f"\\textbf{{{x:.3f}}}"
+                                            if x == the_max
+                                            else f"{x:.3f}"
+                                        )
                                         for x in row.loc[plot_type]
                                     ],
                                     index=row.loc[[plot_type]].index,
@@ -74,8 +86,14 @@ with io.StringIO() as buf:
                 out.columns = pd.MultiIndex.from_tuples(out.columns)
                 out.style.to_latex(buf, hrules=True, environment="table", caption=name)
 
-            export_table(out.random_ablation, f"Key={key}, weights_type={weights_type}, Random Ablation")
-            export_table(out.zero_ablation, f"Key={key}, weights_type={weights_type}, Zero Ablation")
+            export_table(
+                out.random_ablation,
+                f"Key={key}, weights_type={weights_type}, Random Ablation",
+            )
+            export_table(
+                out.zero_ablation,
+                f"Key={key}, weights_type={weights_type}, Zero Ablation",
+            )
 
     with open(args.out_fname, "w") as f:
         f.write(

@@ -1,26 +1,27 @@
 from collections import OrderedDict
 from dataclasses import dataclass
+from functools import partial
+
+import torch
+import torch.nn.functional as F
+from transformer_lens.HookedTransformer import HookedTransformer
+
+from acdc.acdc_utils import (
+    MatchNLLMetric,
+    frac_correct_metric,
+    kl_divergence,
+    logit_diff_metric,
+    negative_log_probs,
+)
+from acdc.docstring.utils import AllDataThings
+from acdc.ioi.ioi_dataset import (
+    IOIDataset,
+)  # NOTE: we now import this LOCALLY so it is deterministic
 from acdc.TLACDCEdge import (
-    EdgeInfo,
     EdgeType,
     TorchIndex,
 )
-from acdc.acdc_utils import filter_nodes, get_present_nodes
 from acdc.TLACDCInterpNode import TLACDCInterpNode
-import warnings
-from functools import partial
-from copy import deepcopy
-import torch.nn.functional as F
-from typing import List
-import click
-import IPython
-from acdc.acdc_utils import MatchNLLMetric, frac_correct_metric, logit_diff_metric, kl_divergence, negative_log_probs
-import torch
-from acdc.docstring.utils import AllDataThings
-from acdc.ioi.ioi_dataset import IOIDataset  # NOTE: we now import this LOCALLY so it is deterministic
-from tqdm import tqdm
-import wandb
-from transformer_lens.HookedTransformer import HookedTransformer
 
 
 def get_gpt2_small(device="cuda") -> HookedTransformer:
@@ -59,9 +60,13 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
     default_data = ioi_dataset.toks.long()[: num_examples * 2, : seq_len - 1].to(device)
     patch_data = abc_dataset.toks.long()[: num_examples * 2, : seq_len - 1].to(device)
     labels = ioi_dataset.toks.long()[: num_examples * 2, seq_len - 1]
-    wrong_labels = torch.as_tensor(ioi_dataset.s_tokenIDs[: num_examples * 2], dtype=torch.long, device=device)
+    wrong_labels = torch.as_tensor(
+        ioi_dataset.s_tokenIDs[: num_examples * 2], dtype=torch.long, device=device
+    )
 
-    assert torch.equal(labels, torch.as_tensor(ioi_dataset.io_tokenIDs, dtype=torch.long))
+    assert torch.equal(
+        labels, torch.as_tensor(ioi_dataset.io_tokenIDs, dtype=torch.long)
+    )
     labels = labels.to(device)
 
     validation_data = default_data[:num_examples, :]
@@ -238,8 +243,10 @@ def get_ioi_true_edges(model):
     for layer_idx, head_idx in all_nodes:
         for letter in "qkv":
             # remove input -> head connection
-            edge_to = corr.edges[f"blocks.{layer_idx}.hook_{letter}_input"][TorchIndex([None, None, head_idx])]
-            edge_to[f"blocks.0.hook_resid_pre"][TorchIndex([None])].present = False
+            edge_to = corr.edges[f"blocks.{layer_idx}.hook_{letter}_input"][
+                TorchIndex([None, None, head_idx])
+            ]
+            edge_to["blocks.0.hook_resid_pre"][TorchIndex([None])].present = False
 
             # Remove all other_head->this_head connections in the circuit
             for layer_from in range(layer_idx):
@@ -249,9 +256,9 @@ def get_ioi_true_edges(model):
                     ].present = False
 
             # Remove connection from this head to the output
-            corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][f"blocks.{layer_idx}.attn.hook_result"][
-                TorchIndex([None, None, head_idx])
-            ].present = False
+            corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][
+                f"blocks.{layer_idx}.attn.hook_result"
+            ][TorchIndex([None, None, head_idx])].present = False
 
     special_connections: set[Conn] = {
         Conn("INPUT", "previous token", ("q", "k", "v")),
@@ -275,20 +282,40 @@ def get_ioi_true_edges(model):
         if conn.inp == "INPUT":
             idx_from = [(-1, "blocks.0.hook_resid_pre", TorchIndex([None]))]
             for mlp_layer_idx in range(12):
-                idx_from.append((mlp_layer_idx, f"blocks.{mlp_layer_idx}.hook_mlp_out", TorchIndex([None])))
+                idx_from.append(
+                    (
+                        mlp_layer_idx,
+                        f"blocks.{mlp_layer_idx}.hook_mlp_out",
+                        TorchIndex([None]),
+                    )
+                )
         else:
             idx_from = [
-                (layer_idx, f"blocks.{layer_idx}.attn.hook_result", TorchIndex([None, None, head_idx]))
+                (
+                    layer_idx,
+                    f"blocks.{layer_idx}.attn.hook_result",
+                    TorchIndex([None, None, head_idx]),
+                )
                 for layer_idx, head_idx in IOI_CIRCUIT[conn.inp]
             ]
 
         if conn.out == "OUTPUT":
             idx_to = [(13, "blocks.11.hook_resid_post", TorchIndex([None]))]
             for mlp_layer_idx in range(12):
-                idx_to.append((mlp_layer_idx, f"blocks.{mlp_layer_idx}.hook_mlp_in", TorchIndex([None])))
+                idx_to.append(
+                    (
+                        mlp_layer_idx,
+                        f"blocks.{mlp_layer_idx}.hook_mlp_in",
+                        TorchIndex([None]),
+                    )
+                )
         else:
             idx_to = [
-                (layer_idx, f"blocks.{layer_idx}.hook_{letter}_input", TorchIndex([None, None, head_idx]))
+                (
+                    layer_idx,
+                    f"blocks.{layer_idx}.hook_{letter}_input",
+                    TorchIndex([None, None, head_idx]),
+                )
                 for layer_idx, head_idx in IOI_CIRCUIT[conn.out]
                 for letter in conn.qkv
             ]
@@ -296,7 +323,9 @@ def get_ioi_true_edges(model):
         for layer_from, layer_name_from, which_idx_from in idx_from:
             for layer_to, layer_name_to, which_idx_to in idx_to:
                 if layer_to > layer_from:
-                    corr.edges[layer_name_to][which_idx_to][layer_name_from][which_idx_from].present = True
+                    corr.edges[layer_name_to][which_idx_to][layer_name_from][
+                        which_idx_from
+                    ].present = True
 
     ret = OrderedDict(
         {

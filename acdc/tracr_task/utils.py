@@ -1,28 +1,34 @@
 import IPython
+
 from acdc.docstring.utils import AllDataThings
-from submodules.tracr.tracr.transformer.encoder_test import _BOS_TOKEN
 
 if IPython.get_ipython() is not None:
     IPython.get_ipython().magic("load_ext autoreload")
     IPython.get_ipython().magic("autoreload 2")
 
-from typing import Literal, List, Tuple, Dict, Any, Optional, Union, Callable, TypeVar, Iterable, Set
-from transformer_lens import HookedTransformer, HookedTransformerConfig
 import warnings
 from collections import OrderedDict
-import einops
-import torch
-import numpy as np
 from functools import partial
-from acdc.acdc_utils import kl_divergence
-from tracr.rasp import rasp
-from tracr.compiler import compiling
+from typing import (
+    Literal,
+)
+
+import einops
+import numpy as np
+import torch
 import torch.nn.functional as F
+from tracr.compiler import compiling
+from tracr.rasp import rasp
+from transformer_lens import HookedTransformer, HookedTransformerConfig
+
+from acdc.acdc_utils import kl_divergence
 
 bos = "BOS"
 
 
-def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], device, return_im=False):
+def get_tracr_model_input_and_tl_model(
+    task: Literal["reverse", "proportion"], device, return_im=False
+):
     """
     This function adapts Neel's TransformerLens porting of tracr
     """
@@ -153,12 +159,22 @@ def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], d
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.b_O"] = model.params[f"transformer/layer_{l}/attn/linear"]["b"]
+        sd[f"blocks.{l}.attn.b_O"] = model.params[f"transformer/layer_{l}/attn/linear"][
+            "b"
+        ]
 
-        sd[f"blocks.{l}.mlp.W_in"] = model.params[f"transformer/layer_{l}/mlp/linear_1"]["w"]
-        sd[f"blocks.{l}.mlp.b_in"] = model.params[f"transformer/layer_{l}/mlp/linear_1"]["b"]
-        sd[f"blocks.{l}.mlp.W_out"] = model.params[f"transformer/layer_{l}/mlp/linear_2"]["w"]
-        sd[f"blocks.{l}.mlp.b_out"] = model.params[f"transformer/layer_{l}/mlp/linear_2"]["b"]
+        sd[f"blocks.{l}.mlp.W_in"] = model.params[
+            f"transformer/layer_{l}/mlp/linear_1"
+        ]["w"]
+        sd[f"blocks.{l}.mlp.b_in"] = model.params[
+            f"transformer/layer_{l}/mlp/linear_1"
+        ]["b"]
+        sd[f"blocks.{l}.mlp.W_out"] = model.params[
+            f"transformer/layer_{l}/mlp/linear_2"
+        ]["w"]
+        sd[f"blocks.{l}.mlp.b_out"] = model.params[
+            f"transformer/layer_{l}/mlp/linear_2"
+        ]["b"]
     print(sd.keys())
 
     # Convert weights to tensors and load into the tl_model
@@ -180,7 +196,9 @@ def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], d
 
     if task == "reverse":  # this doesn't make sense for proportion
 
-        def decode_model_output(logits, output_encoder=OUTPUT_ENCODER, bos_token=INPUT_ENCODER.bos_token):
+        def decode_model_output(
+            logits, output_encoder=OUTPUT_ENCODER, bos_token=INPUT_ENCODER.bos_token
+        ):
             max_output_indices = logits.squeeze(dim=0).argmax(dim=-1)
             decoded_output = output_encoder.decode(max_output_indices.tolist())
             decoded_output_with_bos = [bos_token] + decoded_output[1:]
@@ -217,20 +235,22 @@ def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], d
     for layer in range(tl_model.cfg.n_layers):
         print(
             f"Layer {layer} Attn Out Equality Check:",
-            np.isclose(cache["attn_out", layer].detach().cpu().numpy(), np.array(out.layer_outputs[2 * layer])).all(),
+            np.isclose(
+                cache["attn_out", layer].detach().cpu().numpy(),
+                np.array(out.layer_outputs[2 * layer]),
+            ).all(),
         )
         print(
             f"Layer {layer} MLP Out Equality Check:",
             np.isclose(
-                cache["mlp_out", layer].detach().cpu().numpy(), np.array(out.layer_outputs[2 * layer + 1])
+                cache["mlp_out", layer].detach().cpu().numpy(),
+                np.array(out.layer_outputs[2 * layer + 1]),
             ).all(),
         )
 
     # Look how pretty and ordered the final residual stream is!
     #
     # (The logits are the first 3 dimensions of the residual stream, and we can see that they're flipped!)
-
-    import plotly.express as px
 
     im = cache["resid_post", -1].detach().cpu().numpy()[0]
     # px.imshow(im, color_continuous_scale="Blues", labels={"x":"Residual Stream", "y":"Position"}, y=[str(i) for i in input]).show()
@@ -258,7 +278,7 @@ def l2_metric(  # this is for proportion... it's unclear how to format this tbh 
     return_one_element: bool = True,
     take_element_zero: bool = True,
 ):
-    proc = logits[:, 1:] # this is to skip the BOS token
+    proc = logits[:, 1:]  # this is to skip the BOS token
     if take_element_zero:
         proc = proc[:, :, 0]  # output 0 contains the proportion of the token "x" (== 3)
     assert proc.shape == model_out.shape
@@ -267,18 +287,29 @@ def l2_metric(  # this is for proportion... it's unclear how to format this tbh 
     else:
         return ((proc - model_out) ** 2).flatten()
 
-def get_all_tracr_things(task: Literal["reverse", "proportion"], metric_name: Literal["kl_div", "l2"], num_examples: int, device, method=None):
+
+def get_all_tracr_things(
+    task: Literal["reverse", "proportion"],
+    metric_name: Literal["kl_div", "l2"],
+    num_examples: int,
+    device,
+    method=None,
+):
     _, tl_model = get_tracr_model_input_and_tl_model(task=task, device=device)
     import itertools
 
     if task == "reverse":
-        if method == 'legacy':
+        if method == "legacy":
             batch_size = 6  # there are only 6 permutations of 3 elements
             seq_len = 4
-            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+            data_tens = torch.zeros(
+                (batch_size, seq_len), device=device, dtype=torch.long
+            )
 
             if num_examples != batch_size:
-                raise ValueError("num_examples must be equal to batch_size for reverse task")
+                raise ValueError(
+                    "num_examples must be equal to batch_size for reverse task"
+                )
 
             vals = [0, 1, 2]
 
@@ -286,7 +317,9 @@ def get_all_tracr_things(task: Literal["reverse", "proportion"], metric_name: Li
                 data_tens[perm_idx] = torch.tensor([3, perm[0], perm[1], perm[2]])
 
             patch_data_indices = get_perm(len(data_tens))
-            warnings.warn("TODO Test that this only considers the relevant part of the sequence...")
+            warnings.warn(
+                "TODO Test that this only considers the relevant part of the sequence..."
+            )
 
             patch_data_tens = data_tens[patch_data_indices]
 
@@ -295,25 +328,37 @@ def get_all_tracr_things(task: Literal["reverse", "proportion"], metric_name: Li
             # another permutation as patch data.
             batch_size = 30
             seq_len = 4
-            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
-            patch_data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+            data_tens = torch.zeros(
+                (batch_size, seq_len), device=device, dtype=torch.long
+            )
+            patch_data_tens = torch.zeros(
+                (batch_size, seq_len), device=device, dtype=torch.long
+            )
             vals = [0, 1, 2]
             bos_token = 3
             assert bos_token not in vals
             if num_examples != batch_size:
-                raise ValueError("num_examples must be equal to batch_size for reverse task")
+                raise ValueError(
+                    "num_examples must be equal to batch_size for reverse task"
+                )
 
             perms = list(itertools.permutations(vals))
             pairs = list(itertools.permutations(perms, 2))
             print(perms, pairs)
 
             for perm_idx, (perm1, perm2) in enumerate(pairs):
-                data_tens[perm_idx] = torch.tensor([bos_token, perm1[0], perm1[1], perm1[2]])
-                patch_data_tens[perm_idx] = torch.tensor([bos_token, perm2[0], perm2[1], perm2[2]])
+                data_tens[perm_idx] = torch.tensor(
+                    [bos_token, perm1[0], perm1[1], perm1[2]]
+                )
+                patch_data_tens[perm_idx] = torch.tensor(
+                    [bos_token, perm2[0], perm2[1], perm2[2]]
+                )
 
         with torch.no_grad():
             model_out = tl_model(data_tens)
-            base_model_logprobs = torch.log(model_out) # not softmax bc tracr model output is already in [0, 1]
+            base_model_logprobs = torch.log(
+                model_out
+            )  # not softmax bc tracr model output is already in [0, 1]
         test_metrics = {
             "kl_div": partial(
                 kl_divergence,
@@ -363,7 +408,9 @@ def get_all_tracr_things(task: Literal["reverse", "proportion"], metric_name: Li
             assert all([c in ["w", "x", "y", "z"] for c in s]), s
             return torch.tensor([ord(c) - ord("w") for c in s]).int()
 
-        data_tens = torch.zeros((num_examples * 2, seq_len), dtype=torch.long, device=device)
+        data_tens = torch.zeros(
+            (num_examples * 2, seq_len), dtype=torch.long, device=device
+        )
         alphabet = "wxyz"
         import itertools
 
@@ -429,18 +476,88 @@ def get_tracr_proportion_edges():
 
     return OrderedDict(
         [
-            (("blocks.1.hook_resid_post", (None,), "blocks.1.attn.hook_result", (None, None, 0)), True),
-            (("blocks.1.attn.hook_result", (None, None, 0), "blocks.1.attn.hook_q", (None, None, 0)), True),
-            (("blocks.1.attn.hook_result", (None, None, 0), "blocks.1.attn.hook_k", (None, None, 0)), True),
-            (("blocks.1.attn.hook_result", (None, None, 0), "blocks.1.attn.hook_v", (None, None, 0)), True),
-            (("blocks.1.attn.hook_q", (None, None, 0), "blocks.1.hook_q_input", (None, None, 0)), True),
-            (("blocks.1.attn.hook_k", (None, None, 0), "blocks.1.hook_k_input", (None, None, 0)), True),
-            (("blocks.1.attn.hook_v", (None, None, 0), "blocks.1.hook_v_input", (None, None, 0)), True),
+            (
+                (
+                    "blocks.1.hook_resid_post",
+                    (None,),
+                    "blocks.1.attn.hook_result",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.1.attn.hook_q",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.1.attn.hook_k",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.1.attn.hook_v",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.attn.hook_q",
+                    (None, None, 0),
+                    "blocks.1.hook_q_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.attn.hook_k",
+                    (None, None, 0),
+                    "blocks.1.hook_k_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.attn.hook_v",
+                    (None, None, 0),
+                    "blocks.1.hook_v_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
             (("blocks.1.hook_q_input", (None, None, 0), "hook_embed", (None,)), True),
-            (("blocks.1.hook_q_input", (None, None, 0), "hook_pos_embed", (None,)), True),
+            (
+                ("blocks.1.hook_q_input", (None, None, 0), "hook_pos_embed", (None,)),
+                True,
+            ),
             (("blocks.1.hook_k_input", (None, None, 0), "hook_embed", (None,)), True),
-            (("blocks.1.hook_k_input", (None, None, 0), "hook_pos_embed", (None,)), True),
-            (("blocks.1.hook_v_input", (None, None, 0), "blocks.0.hook_mlp_out", (None,)), True),
+            (
+                ("blocks.1.hook_k_input", (None, None, 0), "hook_pos_embed", (None,)),
+                True,
+            ),
+            (
+                (
+                    "blocks.1.hook_v_input",
+                    (None, None, 0),
+                    "blocks.0.hook_mlp_out",
+                    (None,),
+                ),
+                True,
+            ),
             (("blocks.0.hook_mlp_out", (None,), "blocks.0.hook_mlp_in", (None,)), True),
             (("blocks.0.hook_mlp_in", (None,), "hook_embed", (None,)), True),
         ]
@@ -452,15 +569,82 @@ def get_tracr_reverse_edges():
 
     return OrderedDict(
         [
-            (("blocks.3.hook_resid_post", (None,), "blocks.3.attn.hook_result", (None, None, 0)), True),
-            (("blocks.3.attn.hook_result", (None, None, 0), "blocks.3.attn.hook_q", (None, None, 0)), True),
-            (("blocks.3.attn.hook_result", (None, None, 0), "blocks.3.attn.hook_k", (None, None, 0)), True),
-            (("blocks.3.attn.hook_result", (None, None, 0), "blocks.3.attn.hook_v", (None, None, 0)), True),
-            (("blocks.3.attn.hook_q", (None, None, 0), "blocks.3.hook_q_input", (None, None, 0)), True),
-            (("blocks.3.attn.hook_k", (None, None, 0), "blocks.3.hook_k_input", (None, None, 0)), True),
-            (("blocks.3.attn.hook_v", (None, None, 0), "blocks.3.hook_v_input", (None, None, 0)), True),
-            (("blocks.3.hook_q_input", (None, None, 0), "blocks.2.hook_mlp_out", (None,)), True),
-            (("blocks.3.hook_k_input", (None, None, 0), "hook_pos_embed", (None,)), True),
+            (
+                (
+                    "blocks.3.hook_resid_post",
+                    (None,),
+                    "blocks.3.attn.hook_result",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.3.attn.hook_q",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.3.attn.hook_k",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.3.attn.hook_v",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.attn.hook_q",
+                    (None, None, 0),
+                    "blocks.3.hook_q_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.attn.hook_k",
+                    (None, None, 0),
+                    "blocks.3.hook_k_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.attn.hook_v",
+                    (None, None, 0),
+                    "blocks.3.hook_v_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.3.hook_q_input",
+                    (None, None, 0),
+                    "blocks.2.hook_mlp_out",
+                    (None,),
+                ),
+                True,
+            ),
+            (
+                ("blocks.3.hook_k_input", (None, None, 0), "hook_pos_embed", (None,)),
+                True,
+            ),
             (("blocks.3.hook_v_input", (None, None, 0), "hook_embed", (None,)), True),
             (("blocks.2.hook_mlp_out", (None,), "blocks.2.hook_mlp_in", (None,)), True),
             (("blocks.2.hook_mlp_in", (None,), "blocks.1.hook_mlp_out", (None,)), True),
@@ -469,12 +653,52 @@ def get_tracr_reverse_edges():
             (("blocks.1.hook_mlp_in", (None,), "hook_embed", (None,)), True),
             (("blocks.1.hook_mlp_in", (None,), "hook_pos_embed", (None,)), True),
             (("blocks.0.hook_mlp_out", (None,), "blocks.0.hook_mlp_in", (None,)), True),
-            (("blocks.0.hook_mlp_in", (None,), "blocks.0.attn.hook_result", (None, None, 0)), True),
+            (
+                (
+                    "blocks.0.hook_mlp_in",
+                    (None,),
+                    "blocks.0.attn.hook_result",
+                    (None, None, 0),
+                ),
+                True,
+            ),
             (("blocks.0.hook_mlp_in", (None,), "hook_embed", (None,)), True),
-            (("blocks.0.attn.hook_result", (None, None, 0), "blocks.0.attn.hook_q", (None, None, 0)), True),
-            (("blocks.0.attn.hook_result", (None, None, 0), "blocks.0.attn.hook_k", (None, None, 0)), True),
-            (("blocks.0.attn.hook_result", (None, None, 0), "blocks.0.attn.hook_v", (None, None, 0)), True),
-            (("blocks.0.attn.hook_v", (None, None, 0), "blocks.0.hook_v_input", (None, None, 0)), True),
+            (
+                (
+                    "blocks.0.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.0.attn.hook_q",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.0.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.0.attn.hook_k",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.0.attn.hook_result",
+                    (None, None, 0),
+                    "blocks.0.attn.hook_v",
+                    (None, None, 0),
+                ),
+                True,
+            ),
+            (
+                (
+                    "blocks.0.attn.hook_v",
+                    (None, None, 0),
+                    "blocks.0.hook_v_input",
+                    (None, None, 0),
+                ),
+                True,
+            ),
             (("blocks.0.hook_v_input", (None, None, 0), "hook_embed", (None,)), True),
         ]
     )

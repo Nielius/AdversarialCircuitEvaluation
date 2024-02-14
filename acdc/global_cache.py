@@ -1,6 +1,7 @@
-import torch
-from typing import Union, Tuple, Literal, Dict
 from collections import OrderedDict
+from typing import Literal, Tuple, Union
+
+import torch
 
 
 class GlobalCache:  # this dict stores the activations from the forward pass
@@ -29,7 +30,9 @@ class GlobalCache:  # this dict stores the activations from the forward pass
         gc.collect()
         torch.cuda.empty_cache()
 
-    def to(self, device, which_caches: Literal["online", "corrupted", "all"] = "all"):  #
+    def to(
+        self, device, which_caches: Literal["online", "corrupted", "all"] = "all"
+    ):  #
         caches = []
         if which_caches != "online":
             self.device = (device, self.device[1])

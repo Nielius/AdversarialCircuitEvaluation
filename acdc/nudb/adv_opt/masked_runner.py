@@ -46,7 +46,9 @@ class MaskedRunner:
             # each of an index
             all_indexed_parents: list[IndexedHookPointName] = list(
                 itertools.chain.from_iterable(
-                    IndexedHookPointName.list_from_hook_point(name, self.masked_transformer.n_heads)
+                    IndexedHookPointName.list_from_hook_point(
+                        name, self.masked_transformer.n_heads
+                    )
                     for name in all_parents
                 )
             )
@@ -64,18 +66,24 @@ class MaskedRunner:
         for parameter in self.masked_transformer._mask_logits_dict.values():
             parameter.data.fill_(float("inf"))
 
-    def _set_mask_for_edge(self, child: IndexedHookPointName, parent: IndexedHookPointName, value: float) -> None:
+    def _set_mask_for_edge(
+        self, child: IndexedHookPointName, parent: IndexedHookPointName, value: float
+    ) -> None:
         parent_index = self._parent_index_per_child[(child.hook_name, parent)]
         # self._mask_logits_dict is dict[HookPointName of child, Num[torch.nn.Parameter, "parent (IndexedHookPoint), TorchIndex of child"]
         # todo: I think child.index.as_index[-1] shows that we're not using the right abstraction here; or maybe it doesn't?
-        self.masked_transformer._mask_logits_dict[child.hook_name][parent_index][child.index.as_index[-1]] = value
+        self.masked_transformer._mask_logits_dict[child.hook_name][parent_index][
+            child.index.as_index[-1]
+        ] = value
 
     @cached_property
     def all_ablatable_edges(self) -> set[Edge]:
         return {
             Edge(child=indexed_child, parent=indexed_parent)
             for child, all_indexed_parents in self._indexed_parents_per_child.items()
-            for indexed_child in IndexedHookPointName.list_from_hook_point(child, self.masked_transformer.n_heads)
+            for indexed_child in IndexedHookPointName.list_from_hook_point(
+                child, self.masked_transformer.n_heads
+            )
             for indexed_parent in all_indexed_parents
         }
 
@@ -105,7 +113,9 @@ class MaskedRunner:
         patch_input: Num[torch.Tensor, "batch seq"],
         edges_to_ablate: list[Edge],
     ) -> Num[torch.Tensor, "batch pos vocab"]:
-        with self.with_ablated_edges(patch_input=patch_input, edges_to_ablate=edges_to_ablate) as hooked_model:
+        with self.with_ablated_edges(
+            patch_input=patch_input, edges_to_ablate=edges_to_ablate
+        ) as hooked_model:
             return hooked_model(input)
 
     def run_with_linear_combination(
@@ -124,14 +134,19 @@ class MaskedRunner:
             # TODO: this probably be a convex combination of the embeddings, and also
             # with a softmax
             convex_combination = torch.einsum(
-                "b, b p d -> p d", [torch.nn.functional.softmax(coefficients), input_embedded]
+                "b, b p d -> p d",
+                [torch.nn.functional.softmax(coefficients), input_embedded],
             ).unsqueeze(dim=0)
             return convex_combination
 
         # self.masked_transformer.init_ablation_cache(ablation=) <--- probably want to do something like this
-        with self.with_ablated_edges(patch_input=patch_input, edges_to_ablate=edges_to_ablate) as hooked_transformer:
+        with self.with_ablated_edges(
+            patch_input=patch_input, edges_to_ablate=edges_to_ablate
+        ) as hooked_transformer:
             assert isinstance(hooked_transformer, HookedTransformer)  # help PyCharm
             with hooked_transformer.hooks(
-                fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook)]
+                fwd_hooks=[
+                    ("hook_embed", replace_embedding_with_convex_combination_hook)
+                ]
             ) as hooked_with_linear_combination:
                 return hooked_with_linear_combination(dummy_input)

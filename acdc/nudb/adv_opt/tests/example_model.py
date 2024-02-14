@@ -1,7 +1,3 @@
-import gc
-
-from transformer_lens import HookedTransformer
-
 from acdc.nudb.adv_opt.data_fetchers import EXPERIMENT_DATA_PROVIDERS, AdvOptTaskName
 
 # model = HookedTransformer.from_pretrained("solu-2l") # a very small model
@@ -10,7 +6,9 @@ from acdc.nudb.adv_opt.data_fetchers import EXPERIMENT_DATA_PROVIDERS, AdvOptTas
 #
 # gc.collect()
 #
-tracr_reverse = EXPERIMENT_DATA_PROVIDERS[AdvOptTaskName.TRACR_REVERSE].get_experiment_data()
+tracr_reverse = EXPERIMENT_DATA_PROVIDERS[
+    AdvOptTaskName.TRACR_REVERSE
+].get_experiment_data()
 
 model = tracr_reverse.masked_runner.masked_transformer.model
 

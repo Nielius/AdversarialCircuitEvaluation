@@ -14,8 +14,6 @@
 # %%
 
 try:
-    import google.colab
-
     IN_COLAB = True
     print("Running as a Colab notebook")
 
@@ -33,11 +31,10 @@ try:
         "install git+https://github.com/ArthurConmy/Automatic-Circuit-Discovery.git@d89f7fa9cbd095202f3940c889cb7c6bf5a9b516",
     )
 
-except Exception as e:
+except Exception:
     IN_COLAB = False
     print("Running outside of Colab notebook")
 
-    import numpy  # crucial to not get cursed error
     import plotly
 
     plotly.io.renderers.default = "colab"  # added by Arthur so running as a .py notebook with #%% generates .ipynb notebooks that display in colab
@@ -58,12 +55,13 @@ except Exception as e:
 
 # %%
 
-from transformer_lens.HookedTransformer import HookedTransformer
-from acdc.TLACDCExperiment import TLACDCExperiment
-from acdc.induction.utils import get_all_induction_things
-from acdc.acdc_utils import TorchIndex
-import torch
 import gc
+
+import torch
+
+from acdc.acdc_utils import TorchIndex
+from acdc.induction.utils import get_all_induction_things
+from acdc.TLACDCExperiment import TLACDCExperiment
 
 # %% [markdown]
 # <h2>Load in the model and data for the induction task
@@ -118,7 +116,11 @@ print(
 for i in range(EXAMPLE_LENGTH):
     if mask_rep[EXAMPLE_NO, i]:
         print(f"At position {i} there is induction")
-        print(tl_model.to_str_tokens(toks_int_values[EXAMPLE_NO : EXAMPLE_NO + 1, i : i + 1]))
+        print(
+            tl_model.to_str_tokens(
+                toks_int_values[EXAMPLE_NO : EXAMPLE_NO + 1, i : i + 1]
+            )
+        )
 
 # %% [markdown]
 # <p>Let's get the initial loss on the induction examples</p>
@@ -189,7 +191,9 @@ def change_direct_output_connections(exp, invert=False):
         ("blocks.1.attn.hook_result", TorchIndex([None, None, 6])),
     ]
 
-    inputs_to_residual_stream_end = exp.corr.edges[residual_stream_end_name][residual_stream_end_index]
+    inputs_to_residual_stream_end = exp.corr.edges[residual_stream_end_name][
+        residual_stream_end_index
+    ]
     for sender_name in inputs_to_residual_stream_end:
         for sender_index in inputs_to_residual_stream_end[sender_name]:
             edge = inputs_to_residual_stream_end[sender_name][sender_index]

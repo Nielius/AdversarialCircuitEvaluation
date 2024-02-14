@@ -1,5 +1,6 @@
-from experiments.launcher import KubernetesJob, launch
 import numpy as np
+
+from experiments.launcher import KubernetesJob, launch
 
 CPU = 4
 
@@ -11,17 +12,27 @@ def main(testing: bool):
     commands: list[list[str]] = []
     for reset_network in [0]:
         for zero_ablation in [0, 1]:
-            for loss_type in ["kl_div", "docstring_metric", "docstring_stefan", "nll", "match_nll"]:
+            for loss_type in [
+                "kl_div",
+                "docstring_metric",
+                "docstring_stefan",
+                "nll",
+                "match_nll",
+            ]:
                 for threshold in [1.0] if testing else thresholds:
                     command = [
                         "python",
-                        "acdc/main.py" if testing else "/Automatic-Circuit-Discovery/acdc/main.py",
+                        (
+                            "acdc/main.py"
+                            if testing
+                            else "/Automatic-Circuit-Discovery/acdc/main.py"
+                        ),
                         "--task=docstring",
                         f"--threshold={threshold:.5f}",
                         "--using-wandb",
                         f"--wandb-run-name=agarriga-docstring-{len(commands):03d}",
                         "--wandb-group-name=adria-docstring",
-                        f"--device=cpu",
+                        "--device=cpu",
                         f"--reset-network={reset_network}",
                         f"--seed={seed}",
                         f"--metric={loss_type}",
@@ -38,9 +49,15 @@ def main(testing: bool):
     launch(
         commands,
         name="acdc-docstring",
-        job=None
-        if testing
-        else KubernetesJob(container="ghcr.io/rhaps0dy/automatic-circuit-discovery:1.2.10", cpu=CPU, gpu=0),
+        job=(
+            None
+            if testing
+            else KubernetesJob(
+                container="ghcr.io/rhaps0dy/automatic-circuit-discovery:1.2.10",
+                cpu=CPU,
+                gpu=0,
+            )
+        ),
     )
 
 

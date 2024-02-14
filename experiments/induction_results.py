@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import wandb
-
 import hashlib
 import os
 
+import numpy as np
+import pandas as pd
+import plotly.express as px
 import plotly.io as pio
+
+import wandb
 
 
 class EmacsRenderer(pio.base_renderers.ColabRenderer):
     save_dir = "ob-jupyter"
-    base_url = f"http://localhost:8888/files"
+    base_url = "http://localhost:8888/files"
 
     def to_mimebundle(self, fig_dict):
         html = super().to_mimebundle(fig_dict)["text/html"]
@@ -25,7 +25,9 @@ class EmacsRenderer(pio.base_renderers.ColabRenderer):
         with open(fhtml, "w") as f:
             f.write(html)
 
-        return {"text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'}
+        return {
+            "text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'
+        }
 
 
 pio.renderers["emacs"] = EmacsRenderer()
@@ -54,7 +56,9 @@ failed = 0
 
 for r in all_runs:
     try:
-        d = {k: r.summary[k] for k in ["cur_metric", "test_specific_metric", "num_edges"]}
+        d = {
+            k: r.summary[k] for k in ["cur_metric", "test_specific_metric", "num_edges"]
+        }
     except KeyError:
         failed += 1
     else:
@@ -86,13 +90,29 @@ df.loc[:, "num_examples"] = 50
 
 sp_runs = []
 
-all_runs = api.runs(path="remix_school-of-rock/induction-sp-replicate", filters={"group": SP_GROUP})
+all_runs = api.runs(
+    path="remix_school-of-rock/induction-sp-replicate", filters={"group": SP_GROUP}
+)
 for r in all_runs:
     try:
-        cfg = {k: r.config[k] for k in ["reset_subject", "zero_ablation", "loss_type", "lambda_reg", "num_examples"]}
+        cfg = {
+            k: r.config[k]
+            for k in [
+                "reset_subject",
+                "zero_ablation",
+                "loss_type",
+                "lambda_reg",
+                "num_examples",
+            ]
+        }
         d = {
             k: r.summary[k]
-            for k in ["number_of_edges", "specific_metric", "test_specific_metric", "specific_metric_loss"]
+            for k in [
+                "number_of_edges",
+                "specific_metric",
+                "test_specific_metric",
+                "specific_metric_loss",
+            ]
         }
     except KeyError:
         continue
@@ -100,7 +120,9 @@ for r in all_runs:
     del cfg["reset_subject"]
     cfg["num_edges"] = d["number_of_edges"]
     cfg["cur_metric"] = d["specific_metric"] / r.config["n_loss_average_runs"]
-    cfg["test_specific_metric"] = d["test_specific_metric"] / r.config["n_loss_average_runs"]
+    cfg["test_specific_metric"] = (
+        d["test_specific_metric"] / r.config["n_loss_average_runs"]
+    )
     cfg["alg"] = "subnetwork-probing"
     sp_runs.append(cfg)
 
@@ -112,7 +134,9 @@ for r in sp_runs:
 
 # %%
 
-df.loc[:, "color"] = df.apply(lambda x: f"{x['alg']}-reset={x['reset_network']:.0f}", axis=1)
+df.loc[:, "color"] = df.apply(
+    lambda x: f"{x['alg']}-reset={x['reset_network']:.0f}", axis=1
+)
 
 # Scatter plot of num_edges vs cur_metric grouped by reset_network
 

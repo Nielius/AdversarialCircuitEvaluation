@@ -8,19 +8,34 @@ import random
 from typing import Callable
 
 import torch
-import wandb
 from tqdm import tqdm
 
-from acdc.TLACDCCorrespondence import TLACDCCorrespondence
-from acdc.TLACDCEdge import EdgeType
+import wandb
 from acdc.acdc_utils import reset_network
-from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_docstring_subgraph_true_edges
-from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
+from acdc.docstring.utils import (
+    AllDataThings,
+    get_all_docstring_things,
+    get_docstring_subgraph_true_edges,
+)
+from acdc.greaterthan.utils import (
+    get_all_greaterthan_things,
+    get_greaterthan_true_edges,
+)
 from acdc.induction.utils import get_all_induction_things  # , get_induction_true_edges
 from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
-from acdc.tracr_task.utils import get_all_tracr_things
-from acdc.tracr_task.utils import get_tracr_proportion_edges, get_tracr_reverse_edges
-from subnetwork_probing.sp_utils import MaskedTransformer, edge_level_corr, print_stats, set_ground_truth_edges
+from acdc.TLACDCCorrespondence import TLACDCCorrespondence
+from acdc.TLACDCEdge import EdgeType
+from acdc.tracr_task.utils import (
+    get_all_tracr_things,
+    get_tracr_proportion_edges,
+    get_tracr_reverse_edges,
+)
+from subnetwork_probing.sp_utils import (
+    MaskedTransformer,
+    edge_level_corr,
+    print_stats,
+    set_ground_truth_edges,
+)
 
 
 def save_edges(corr: TLACDCCorrespondence, fname: str):
@@ -66,9 +81,18 @@ def train_edge_sp(
 
         with torch.no_grad():
             reset_logits = masked_model.model(all_task_things.validation_data)
-            print("Reset validation metric: ", all_task_things.validation_metric(reset_logits))
+            print(
+                "Reset validation metric: ",
+                all_task_things.validation_metric(reset_logits),
+            )
             reset_logits = masked_model.model(all_task_things.test_data)
-            print("Reset test metric: ", {k: v(reset_logits).item() for k, v in all_task_things.test_metrics.items()})
+            print(
+                "Reset test metric: ",
+                {
+                    k: v(reset_logits).item()
+                    for k, v in all_task_things.test_metrics.items()
+                },
+            )
 
     # one parameter per thing that is masked
     mask_params = list(p for p in masked_model.mask_logits if p.requires_grad)
@@ -81,8 +105,12 @@ def train_edge_sp(
     if args.zero_ablation:
         valid_context_args = test_context_args = dict(ablation="zero")
     else:
-        valid_context_args = dict(ablation="resample", ablation_data=all_task_things.validation_patch_data)
-        test_context_args = dict(ablation="resample", ablation_data=all_task_things.test_patch_data)
+        valid_context_args = dict(
+            ablation="resample", ablation_data=all_task_things.validation_patch_data
+        )
+        test_context_args = dict(
+            ablation="resample", ablation_data=all_task_things.test_patch_data
+        )
 
     # Get canonical subgraph so we can print TPR, FPR
     canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
@@ -97,9 +125,13 @@ def train_edge_sp(
     for epoch in tqdm(range(epochs)):  # tqdm.notebook.tqdm(range(epochs)):
         masked_model.train()
         trainer.zero_grad()
-        with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
+        with masked_model.with_fwd_hooks_and_new_cache(
+            **valid_context_args
+        ) as hooked_model:
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes before forward")
-            metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.validation_data))
+            metric_loss = all_task_things.validation_metric(
+                hooked_model(all_task_things.validation_data)
+            )
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes after forward")
         regularizer_term = masked_model.regularization_loss()
         loss = metric_loss + regularizer_term * lambda_reg
@@ -112,14 +144,20 @@ def train_edge_sp(
             for i in range(3):  # sample multiple times to get average edge_tpr etc.
                 corr = edge_level_corr(masked_model)
                 try:
-                    stats = print_stats(corr, canonical_circuit_subgraph, do_print=False)
+                    stats = print_stats(
+                        corr, canonical_circuit_subgraph, do_print=False
+                    )
                     statss.append(stats)
                 except:
                     pass
             stats = {k: sum(s[k] for s in statss) / len(statss) for k in statss[0]}
             with torch.no_grad():
-                with masked_model.with_fwd_hooks_and_new_cache(**test_context_args) as hooked_model:
-                    test_metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.test_data))
+                with masked_model.with_fwd_hooks_and_new_cache(
+                    **test_context_args
+                ) as hooked_model:
+                    test_metric_loss = all_task_things.validation_metric(
+                        hooked_model(all_task_things.test_data)
+                    )
             test_loss = test_metric_loss + regularizer_term * lambda_reg
 
             wandb.log(
@@ -162,11 +200,17 @@ def train_edge_sp(
         if args.zero_ablation:
             masked_model.do_zero_caching()
         else:
-            masked_model.do_random_resample_caching(all_task_things.validation_patch_data)
+            masked_model.do_random_resample_caching(
+                all_task_things.validation_patch_data
+            )
 
         for _ in range(args.n_loss_average_runs):
-            with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
-                metric_loss += all_task_things.validation_metric(hooked_model(all_task_things.validation_data)).item()
+            with masked_model.with_fwd_hooks_and_new_cache(
+                **valid_context_args
+            ) as hooked_model:
+                metric_loss += all_task_things.validation_metric(
+                    hooked_model(all_task_things.validation_data)
+                ).item()
         print(f"Final train/validation metric: {metric_loss:.4f}")
 
         if args.zero_ablation:
@@ -180,8 +224,12 @@ def train_edge_sp(
             test_specific_metric_term = 0.0
             # Test loss
             for _ in range(args.n_loss_average_runs):
-                with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
-                    test_specific_metric_term += fn(hooked_model(all_task_things.test_data)).item()
+                with masked_model.with_fwd_hooks_and_new_cache(
+                    **valid_context_args
+                ) as hooked_model:
+                    test_specific_metric_term += fn(
+                        hooked_model(all_task_things.test_data)
+                    ).item()
             test_specific_metrics[f"test_{k}"] = test_specific_metric_term
 
         print(f"Final test metric: {test_specific_metrics}")
@@ -226,12 +274,22 @@ parser.add_argument("--verbose", type=int, default=1)
 parser.add_argument("--lambda-reg", type=float, default=100)
 parser.add_argument("--zero-ablation", type=int, required=True)
 parser.add_argument("--reset-subject", type=int, default=0)
-parser.add_argument("--seed", type=int, default=random.randint(0, 2**31 - 1), help="Random seed (default: random)")
+parser.add_argument(
+    "--seed",
+    type=int,
+    default=random.randint(0, 2**31 - 1),
+    help="Random seed (default: random)",
+)
 parser.add_argument("--num-examples", type=int, default=50)
 parser.add_argument("--seq-len", type=int, default=300)
 parser.add_argument("--n-loss-average-runs", type=int, default=4)
 parser.add_argument("--task", type=str, required=True)
-parser.add_argument("--torch-num-threads", type=int, default=0, help="How many threads to use for torch (0=all)")
+parser.add_argument(
+    "--torch-num-threads",
+    type=int,
+    default=0,
+    help="How many threads to use for torch (0=all)",
+)
 parser.add_argument("--print-stats", type=int, default=1, required=False)
 
 # %%
@@ -248,7 +306,9 @@ if __name__ == "__main__":
             device=torch.device(args.device),
             metric_name=args.loss_type,
         )
-        get_true_edges = lambda: get_ioi_true_edges(all_task_things.tl_model)  # noqa: E731
+        get_true_edges = lambda: get_ioi_true_edges(
+            all_task_things.tl_model
+        )  # noqa: E731
     elif args.task == "induction":
         all_task_things = get_all_induction_things(
             args.num_examples,
@@ -259,7 +319,10 @@ if __name__ == "__main__":
         # get_true_edges = get_induction_true_edges # missing because there is no canonical induction circuit -tkwa
     elif args.task == "tracr-reverse":
         all_task_things = get_all_tracr_things(
-            task="reverse", metric_name=args.loss_type, num_examples=args.num_examples, device=torch.device(args.device)
+            task="reverse",
+            metric_name=args.loss_type,
+            num_examples=args.num_examples,
+            device=torch.device(args.device),
         )
         get_true_edges = get_tracr_reverse_edges
     elif args.task == "tracr-proportion":
@@ -285,7 +348,9 @@ if __name__ == "__main__":
             metric_name=args.loss_type,
             device=args.device,
         )
-        get_true_edges = lambda: get_greaterthan_true_edges(all_task_things.tl_model)  # noqa: E731
+        get_true_edges = lambda: get_greaterthan_true_edges(
+            all_task_things.tl_model
+        )  # noqa: E731
     else:
         raise ValueError(f"Unknown task {args.task}")
 

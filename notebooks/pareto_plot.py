@@ -11,22 +11,19 @@ if IPython.get_ipython() is not None:
     IPython.get_ipython().run_line_magic("autoreload", "2")
 
 import warnings
-import torch
-import os
-from tqdm import tqdm
-import pandas as pd
-import wandb
+
 import numpy as np
-from acdc.acdc_utils import ct
-import matplotlib.pyplot as plt
+import pandas as pd
 import plotly.graph_objects as go
+import torch
+from tqdm import tqdm
+
+import wandb
 from acdc.acdc_utils import (
-    get_nonan,
-    get_corresponding_element,
+    ct,
     get_first_element,
-    get_longest_float,
-    process_nan,
     get_threshold_zero,
+    process_nan,
 )
 
 # %%
@@ -42,12 +39,35 @@ project_names = [
 ]
 
 api = wandb.Api()
-ALL_COLORS = ["blue", "red", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
+ALL_COLORS = [
+    "blue",
+    "red",
+    "green",
+    "orange",
+    "purple",
+    "brown",
+    "pink",
+    "gray",
+    "olive",
+    "cyan",
+]
 
 final_edges = []
 final_metric = []
 names = []
-COLS = ["black", "red", "green", "blue", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
+COLS = [
+    "black",
+    "red",
+    "green",
+    "blue",
+    "orange",
+    "purple",
+    "brown",
+    "pink",
+    "gray",
+    "olive",
+    "cyan",
+]
 col_dict = {
     "geometric": "blue",
     "harmonic": "red",
@@ -83,7 +103,11 @@ for pi, project_name in enumerate(project_names):
 
             # rename the column "experiment.cur_metric" to "metric"
             history = history.rename(
-                columns={"experiment.cur_metric": "metric", "num_edges_total": "num_edges", "self.cur_metric": "metric"}
+                columns={
+                    "experiment.cur_metric": "metric",
+                    "num_edges_total": "num_edges",
+                    "self.cur_metric": "metric",
+                }
             )
             min_edges = history["num_edges"].min().min()
             max_edges = history["num_edges"].max().max()
@@ -135,15 +159,21 @@ with open("histories/" + ct() + ".pkl", "wb") as f:
     pickle.dump(histories, f)
 
 if torch.norm(torch.tensor(_initial_losses) - _initial_losses[0]) > 1e-5:
-    warnings.warn(f"Initial losses are not the same, so this may be an unfair comparison of {_initial_losses=}")
+    warnings.warn(
+        f"Initial losses are not the same, so this may be an unfair comparison of {_initial_losses=}"
+    )
 if torch.norm(torch.tensor(_initial_edges).float() - _initial_edges[0]) > 1e-5:
-    warnings.warn(f"Initial edges are not the same, so this may be an unfair comparison of {_initial_edges=}")
+    warnings.warn(
+        f"Initial edges are not the same, so this may be an unfair comparison of {_initial_edges=}"
+    )
 
 added_final_edges = False
 
 thresholds = []
 for name in names:
-    if name.endswith("zero") or (name.endswith("reversed") and not name.endswith("zero_reversed")):
+    if name.endswith("zero") or (
+        name.endswith("reversed") and not name.endswith("zero_reversed")
+    ):
         thresholds.append(get_threshold_zero(name, -2))
     elif "zero_ablation=" in name:
         thresholds.append(float(name.split("=")[1].split("_")[0]))
@@ -224,7 +254,9 @@ if False:
                         edges.append(history.iloc[i]["number_of_edges"])
                         kls.append(history.iloc[i]["acc_loss"])
 
-                    warnings.warn("We take min of both, plausibly the (edges, kl) result is actually unattainable")
+                    warnings.warn(
+                        "We take min of both, plausibly the (edges, kl) result is actually unattainable"
+                    )
 
         labels = fig2.data[0]["regularization_params"]
         kls = torch.tensor(kls)
@@ -363,7 +395,9 @@ subnetwork_prob_fig.data[0].marker["size"] = 10
 subnetwork_prob_fig.data[0].marker["color"] = "black"
 subnetwork_prob_fig.data[0]["name"] = "Subnetwork Probing"
 subnetwork_prob_fig.data[0]["showlegend"] = True
-subnetwork_prob_fig.update_layout(legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
+subnetwork_prob_fig.update_layout(
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+)
 subnetwork_prob_fig.show()
 # %%
 from plotly.subplots import make_subplots
@@ -373,7 +407,10 @@ combined_fig.add_trace(fig.data[0], secondary_y=False)
 combined_fig.add_trace(subnetwork_prob_fig.data[0], secondary_y=False)
 # %%
 
-for y_val, text in zip([_initial_losses[0], -1 * 4.493981649709302], ["The whole graph", "Induction heads scrubbed"]):
+for y_val, text in zip(
+    [_initial_losses[0], -1 * 4.493981649709302],
+    ["The whole graph", "Induction heads scrubbed"],
+):
     # add a dotted line y=WHOLE_LOSS
     combined_fig.add_shape(
         type="line",
@@ -428,7 +465,10 @@ fig.add_trace(
         x=vals,
         y=labels,
         orientation="h",
-        marker=dict(color="rgba(50, 171, 96, 0.6)", line=dict(color="rgba(50, 171, 96, 1.0)", width=3)),
+        marker=dict(
+            color="rgba(50, 171, 96, 0.6)",
+            line=dict(color="rgba(50, 171, 96, 1.0)", width=3),
+        ),
     )
 )
 fig.show()

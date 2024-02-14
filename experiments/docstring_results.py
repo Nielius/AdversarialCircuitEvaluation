@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import wandb
-
 import hashlib
 import os
 
-import plotly.io as pio
+import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
+
+import wandb
 
 
 class EmacsRenderer(pio.base_renderers.ColabRenderer):
     save_dir = "ob-jupyter"
-    base_url = f"http://localhost:8888/files"
+    base_url = "http://localhost:8888/files"
 
     def to_mimebundle(self, fig_dict):
         html = super().to_mimebundle(fig_dict)["text/html"]
@@ -27,7 +26,9 @@ class EmacsRenderer(pio.base_renderers.ColabRenderer):
         with open(fhtml, "w") as f:
             f.write(html)
 
-        return {"text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'}
+        return {
+            "text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'
+        }
 
 
 pio.renderers["emacs"] = EmacsRenderer()
@@ -50,7 +51,10 @@ all_runs = api.runs(path="remix_school-of-rock/acdc", filters={"group": ACDC_GRO
 df = pd.DataFrame()
 for r in all_runs:
     try:
-        cfg = {k: r.config[k] for k in ["reset_network", "zero_ablation", "metric", "task", "threshold"]}
+        cfg = {
+            k: r.config[k]
+            for k in ["reset_network", "zero_ablation", "metric", "task", "threshold"]
+        }
         d = {
             k: r.summary[k]
             for k in [
@@ -76,10 +80,15 @@ for r in all_runs:
 
 start_idx: float = df.index.max() + 1
 
-all_runs = api.runs(path="remix_school-of-rock/induction-sp-replicate", filters={"group": SP_GROUP})
+all_runs = api.runs(
+    path="remix_school-of-rock/induction-sp-replicate", filters={"group": SP_GROUP}
+)
 for r in all_runs:
     try:
-        cfg = {k: r.config[k] for k in ["reset_subject", "zero_ablation", "loss_type", "lambda_reg"]}
+        cfg = {
+            k: r.config[k]
+            for k in ["reset_subject", "zero_ablation", "loss_type", "lambda_reg"]
+        }
         d = {
             k: r.summary[k]
             for k in [
@@ -111,7 +120,9 @@ for r in all_runs:
 
 # %%
 
-df.loc[:, "color"] = df.apply(lambda x: f"{x['alg']}-reset={x['reset_network']:.0f}", axis=1)
+df.loc[:, "color"] = df.apply(
+    lambda x: f"{x['alg']}-reset={x['reset_network']:.0f}", axis=1
+)
 
 # Scatter plot of num_edges vs cur_metric grouped by reset_network
 
@@ -136,7 +147,13 @@ fig.show()
 
 # %%
 
-for test_metric in ["test_docstring_metric", "test_docstring_stefan", "test_kl_div", "test_match_nll", "test_nll"]:
+for test_metric in [
+    "test_docstring_metric",
+    "test_docstring_stefan",
+    "test_kl_div",
+    "test_match_nll",
+    "test_nll",
+]:
     fig = px.scatter(
         df,
         x="num_edges",
@@ -160,7 +177,13 @@ for test_metric in ["test_docstring_metric", "test_docstring_stefan", "test_kl_d
 # %% Scatter plot for train vs test of every metric
 fig = make_subplots()
 
-for test_metric in ["test_docstring_metric", "test_docstring_stefan", "test_kl_div", "test_match_nll", "test_nll"]:
+for test_metric in [
+    "test_docstring_metric",
+    "test_docstring_stefan",
+    "test_kl_div",
+    "test_match_nll",
+    "test_nll",
+]:
     this_df = df[(df["metric"] == test_metric.lstrip("test_")) & (~df["zero_ablation"])]
     trace1 = go.Scatter(
         x=this_df["cur_metric"],
@@ -173,10 +196,22 @@ fig.show()
 
 # %% Compare each metric with the other metrics
 
-for main_metric in ["test_docstring_metric", "test_docstring_stefan", "test_kl_div", "test_match_nll", "test_nll"]:
+for main_metric in [
+    "test_docstring_metric",
+    "test_docstring_stefan",
+    "test_kl_div",
+    "test_match_nll",
+    "test_nll",
+]:
     fig = make_subplots()
     this_df = df[(df["metric"] == main_metric.lstrip("test_")) & (~df["zero_ablation"])]
-    for test_metric in ["test_docstring_metric", "test_docstring_stefan", "test_kl_div", "test_match_nll", "test_nll"]:
+    for test_metric in [
+        "test_docstring_metric",
+        "test_docstring_stefan",
+        "test_kl_div",
+        "test_match_nll",
+        "test_nll",
+    ]:
         trace1 = go.Scatter(
             x=this_df["cur_metric"],
             y=this_df[test_metric],

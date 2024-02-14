@@ -1,29 +1,16 @@
 import itertools
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Union
+
+import numpy as np
+import plotly.graph_objects as go
+import pygraphviz as pgv
 
 import wandb
-import os
-from collections import defaultdict
-import pickle
-import torch
-import numpy as np
-import huggingface_hub
-import datetime
-from typing import Dict, Union, Iterable
-import wandb
-import plotly.graph_objects as go
-import torch
-import random
-import torch.nn as nn
-import torch.nn.functional as F
-from typing import List, Optional
-import warnings
-import networkx as nx
+from acdc.acdc_utils import EdgeType
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
 from acdc.TLACDCEdge import EdgeCollection, HookPointName, TorchIndex
 from acdc.TLACDCInterpNode import TLACDCInterpNode
-from acdc.acdc_utils import EdgeType
-import pygraphviz as pgv
-from pathlib import Path
 
 EDGE_TYPE_COLORS = {
     EdgeType.ADDITION.value: "#FF0000",  # Red
@@ -47,12 +34,18 @@ def generate_random_color(colorscheme: str) -> str:
     return rgb2hex(cmapy.color("Pastel2", np.random.randint(0, 256), rgb_order=True))
 
 
-def get_pretty_graph_name_for_interp_node(node: TLACDCInterpNode, show_full_index=True) -> str:
+def get_pretty_graph_name_for_interp_node(
+    node: TLACDCInterpNode, show_full_index=True
+) -> str:
     """Node name for use in pretty graphs"""
-    return get_pretty_graph_name_for_node(node.name, node.index, show_full_index=show_full_index)
+    return get_pretty_graph_name_for_node(
+        node.name, node.index, show_full_index=show_full_index
+    )
 
 
-def get_pretty_graph_name_for_node(node_name: HookPointName, node_index: TorchIndex, show_full_index=True) -> str:
+def get_pretty_graph_name_for_node(
+    node_name: HookPointName, node_index: TorchIndex, show_full_index=True
+) -> str:
     """Node name for use in pretty graphs"""
 
     if not show_full_index:
@@ -62,7 +55,9 @@ def get_pretty_graph_name_for_node(node_name: HookPointName, node_index: TorchIn
 
         # Handle embedz
         if "resid_pre" in node_name:
-            assert "0" in node_name and not any([str(i) in node_name for i in range(1, 10)])
+            assert "0" in node_name and not any(
+                [str(i) in node_name for i in range(1, 10)]
+            )
             name += "embed"
             if len(node_index.hashable_tuple) > 2:
                 name += f"_[{node_index.hashable_tuple[2]}]"
@@ -72,17 +67,33 @@ def get_pretty_graph_name_for_node(node_name: HookPointName, node_index: TorchIn
             name = "pos_embeds" if "pos" in node_name else "token_embeds"
 
         # Handle q_input and hook_q etc
-        elif any([node_name.endswith(qkv_input_substring) for qkv_input_substring in qkv_input_substrings]):
+        elif any(
+            [
+                node_name.endswith(qkv_input_substring)
+                for qkv_input_substring in qkv_input_substrings
+            ]
+        ):
             relevant_letter = None
             for letter, qkv_substring in zip(["q", "k", "v"], qkv_substrings):
                 if qkv_substring in node_name:
                     assert relevant_letter is None
                     relevant_letter = letter
-            name += "a" + node_name.split(".")[1] + "." + str(node_index.hashable_tuple[2]) + "_" + relevant_letter
+            name += (
+                "a"
+                + node_name.split(".")[1]
+                + "."
+                + str(node_index.hashable_tuple[2])
+                + "_"
+                + relevant_letter
+            )
 
         # Handle attention hook_result
-        elif "hook_result" in node_name or any([qkv_substring in node_name for qkv_substring in qkv_substrings]):
-            name = "a" + node_name.split(".")[1] + "." + str(node_index.hashable_tuple[2])
+        elif "hook_result" in node_name or any(
+            [qkv_substring in node_name for qkv_substring in qkv_substrings]
+        ):
+            name = (
+                "a" + node_name.split(".")[1] + "." + str(node_index.hashable_tuple[2])
+            )
 
         # Handle MLPs
         elif node_name.endswith("resid_mid"):
@@ -104,13 +115,15 @@ def get_pretty_graph_name_for_node(node_name: HookPointName, node_index: TorchIn
 
 
 def build_random_colorscheme_for_correspondence(
-    correspondence: TLACDCCorrespondence, colorscheme: str = "Pastel2", show_full_index=True
+    correspondence: TLACDCCorrespondence,
+    colorscheme: str = "Pastel2",
+    show_full_index=True,
 ) -> Dict[str, str]:
     colors = {}
     for node in correspondence.nodes_list():
-        colors[get_pretty_graph_name_for_interp_node(node, show_full_index=show_full_index)] = generate_random_color(
-            colorscheme
-        )
+        colors[
+            get_pretty_graph_name_for_interp_node(node, show_full_index=show_full_index)
+        ] = generate_random_color(colorscheme)
     return colors
 
 
@@ -119,8 +132,14 @@ def build_random_colorscheme_for_edge_collection(
 ) -> dict[str, str]:
     return build_random_colorscheme_for_nodes(
         itertools.chain(
-            ((node_name, node_index) for node_name, node_index, _, _ in edge_collection.keys()),
-            ((node_name, node_index) for _, _, node_name, node_index in edge_collection.keys()),
+            (
+                (node_name, node_index)
+                for node_name, node_index, _, _ in edge_collection.keys()
+            ),
+            (
+                (node_name, node_index)
+                for _, _, node_name, node_index in edge_collection.keys()
+            ),
         ),
         colorscheme,
         show_full_index=show_full_index,
@@ -128,12 +147,14 @@ def build_random_colorscheme_for_edge_collection(
 
 
 def build_random_colorscheme_for_nodes(
-    nodes: Iterable[tuple[HookPointName, TorchIndex]], colorscheme: str = "Pastel2", show_full_index=True
+    nodes: Iterable[tuple[HookPointName, TorchIndex]],
+    colorscheme: str = "Pastel2",
+    show_full_index=True,
 ) -> dict[str, str]:
     return {
-        get_pretty_graph_name_for_node(node_name, node_index, show_full_index=show_full_index): generate_random_color(
-            colorscheme
-        )
+        get_pretty_graph_name_for_node(
+            node_name, node_index, show_full_index=show_full_index
+        ): generate_random_color(colorscheme)
         for node_name, node_index in nodes
     }
 
@@ -190,7 +211,13 @@ def graph_from_edges(
 
     filename: if not None, save the graph to this filename
     """
-    g = pgv.AGraph(directed=True, bgcolor="transparent", overlap="false", splines="true", layout=layout)
+    g = pgv.AGraph(
+        directed=True,
+        bgcolor="transparent",
+        overlap="false",
+        splines="true",
+        layout=layout,
+    )
 
     if seed is not None:
         np.random.seed(seed)
@@ -223,13 +250,26 @@ def graph_from_edges(
                 node_pos[node.name] = node.attr["pos"]
 
     # create all nodes and edges
-    for (child_hook_name, child_index, parent_hook_name, parent_index), edge in edge_collection.items():
-        parent_name = get_pretty_graph_name_for_node(parent_hook_name, parent_index, show_full_index=show_full_index)
-        child_name = get_pretty_graph_name_for_node(child_hook_name, child_index, show_full_index=show_full_index)
+    for (
+        child_hook_name,
+        child_index,
+        parent_hook_name,
+        parent_index,
+    ), edge in edge_collection.items():
+        parent_name = get_pretty_graph_name_for_node(
+            parent_hook_name, parent_index, show_full_index=show_full_index
+        )
+        child_name = get_pretty_graph_name_for_node(
+            child_hook_name, child_index, show_full_index=show_full_index
+        )
 
         if remove_qkv:
-            parent_name = parent_name.replace("_q>", ">").replace("_k>", ">").replace("_v>", ">")
-            child_name = child_name.replace("_q>", ">").replace("_k>", ">").replace("_v>", ">")
+            parent_name = (
+                parent_name.replace("_q>", ">").replace("_k>", ">").replace("_v>", ">")
+            )
+            child_name = (
+                child_name.replace("_q>", ">").replace("_k>", ">").replace("_v>", ">")
+            )
 
         if remove_self_loops and parent_name == child_name:
             # Important this go after the qkv removal
@@ -261,7 +301,11 @@ def graph_from_edges(
             parent_name,
             child_name,
             penwidth=str(max(minimum_penwidth, edge.effect_size or 0) * 2),
-            color=colors[parent_name] if not edge_type_colouring else EDGE_TYPE_COLORS[edge.edge_type.value],
+            color=(
+                colors[parent_name]
+                if not edge_type_colouring
+                else EDGE_TYPE_COLORS[edge.edge_type.value]
+            ),
         )
 
     if filename is not None:
@@ -271,7 +315,13 @@ def graph_from_edges(
         dir_for_groups = Path(filename_without_extension)
         dir_for_groups.mkdir(exist_ok=True)
         for k, s in color_groups.items():
-            g2 = pgv.AGraph(directed=True, bgcolor="transparent", overlap="false", splines="true", layout="neato")
+            g2 = pgv.AGraph(
+                directed=True,
+                bgcolor="transparent",
+                overlap="false",
+                splines="true",
+                layout="neato",
+            )
             for node_name in s:
                 g2.add_node(
                     node_name,
@@ -321,7 +371,9 @@ def log_metrics_to_wandb(
     """Arthur added Nones so that just some of the metrics can be plotted"""
 
     experiment.metrics_to_plot["new_metrics"].append(experiment.cur_metric)
-    experiment.metrics_to_plot["list_of_nodes_evaluated"].append(str(experiment.current_node))
+    experiment.metrics_to_plot["list_of_nodes_evaluated"].append(
+        str(experiment.current_node)
+    )
     if parent_name is not None:
         experiment.metrics_to_plot["list_of_parents_evaluated"].append(parent_name)
     if child_name is not None:
@@ -339,7 +391,10 @@ def log_metrics_to_wandb(
         experiment.metrics_to_plot["times_diff"].append(  # hopefully fixes
             0
             if len(experiment.metrics_to_plot["times"]) == 1
-            else (experiment.metrics_to_plot["times"][-1] - experiment.metrics_to_plot["times"][-2])
+            else (
+                experiment.metrics_to_plot["times"][-1]
+                - experiment.metrics_to_plot["times"][-2]
+            )
         )
 
     experiment.metrics_to_plot["acdc_step"] += 1
@@ -356,7 +411,9 @@ def log_metrics_to_wandb(
                             f"{parent_string} to {child_string}"
                             for parent_string, child_string in zip(
                                 experiment.metrics_to_plot["list_of_parents_evaluated"],
-                                experiment.metrics_to_plot["list_of_children_evaluated"],
+                                experiment.metrics_to_plot[
+                                    "list_of_children_evaluated"
+                                ],
                             )
                         ],
                         plot_name=y_name,
@@ -381,7 +438,9 @@ def log_metrics_to_wandb(
         # Arthur added... I think wandb graphs have a lot of desirable properties
         if experiment.skip_edges != "yes":
             wandb.log({"num_edges_total": experiment.metrics_to_plot["num_edges"][-1]})
-        wandb.log({"experiment.cur_metric": experiment.metrics_to_plot["current_metrics"][-1]})
+        wandb.log(
+            {"experiment.cur_metric": experiment.metrics_to_plot["current_metrics"][-1]}
+        )
         if experiment.second_metric is not None:
             wandb.log({"experiment.second_metric": experiment.cur_second_metric})
 
@@ -436,7 +495,9 @@ def dict_merge(dct, merge_dct):
     :return: None
     """
     for k in merge_dct.keys():
-        if k in dct and isinstance(dct[k], dict) and isinstance(merge_dct[k], dict):  # noqa
+        if (
+            k in dct and isinstance(dct[k], dict) and isinstance(merge_dct[k], dict)
+        ):  # noqa
             dict_merge(dct[k], merge_dct[k])
         else:
             dct[k] = merge_dct[k]

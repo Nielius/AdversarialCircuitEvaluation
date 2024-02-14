@@ -1,7 +1,9 @@
-from experiments.launcher import KubernetesJob, launch
-import subprocess
 import argparse
+import subprocess
+
 import numpy as np
+
+from experiments.launcher import KubernetesJob, launch
 
 CPU = 4
 
@@ -20,13 +22,17 @@ def main(
                 for threshold in [1.0] if testing else thresholds:
                     command = [
                         "python",
-                        "acdc/main.py" if (not is_adria) else "/Automatic-Circuit-Discovery/acdc/main.py",
+                        (
+                            "acdc/main.py"
+                            if (not is_adria)
+                            else "/Automatic-Circuit-Discovery/acdc/main.py"
+                        ),
                         "--task=induction",
                         f"--threshold={threshold:.5f}",
                         "--using-wandb",
                         f"--wandb-run-name=agarriga-acdc-{len(commands):03d}",
                         "--wandb-group-name=adria-induction-3",
-                        f"--device=cpu",
+                        "--device=cpu",
                         f"--reset-network={reset_network}",
                         f"--seed={seed}",
                         f"--metric={loss_type}",
@@ -43,9 +49,15 @@ def main(
         launch(
             commands,
             name="acdc-induction",
-            job=None
-            if testing
-            else KubernetesJob(container="ghcr.io/rhaps0dy/automatic-circuit-discovery:1.2.8", cpu=CPU, gpu=0),
+            job=(
+                None
+                if testing
+                else KubernetesJob(
+                    container="ghcr.io/rhaps0dy/automatic-circuit-discovery:1.2.8",
+                    cpu=CPU,
+                    gpu=0,
+                )
+            ),
         )
 
     else:

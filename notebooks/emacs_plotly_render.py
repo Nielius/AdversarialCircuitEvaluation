@@ -8,7 +8,7 @@ import plotly.io as pio
 
 class EmacsRenderer(pio.base_renderers.ColabRenderer):
     save_dir = "ob-jupyter"
-    base_url = f"http://localhost:8888/files"
+    base_url = "http://localhost:8888/files"
 
     def to_mimebundle(self, fig_dict):
         html = super().to_mimebundle(fig_dict)["text/html"]
@@ -20,7 +20,9 @@ class EmacsRenderer(pio.base_renderers.ColabRenderer):
         with open(fhtml, "w") as f:
             f.write(html)
 
-        return {"text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'}
+        return {
+            "text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'
+        }
 
 
 pio.renderers["emacs"] = EmacsRenderer()

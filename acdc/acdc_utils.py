@@ -1,25 +1,20 @@
 import ast
-from collections import OrderedDict
 import re
 import sys
 import time
-from collections import defaultdict
-from enum import Enum
-from typing import Any, Optional, Tuple, Union, List
-from huggingface_hub import hf_hub_download
+from collections import OrderedDict, defaultdict
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from huggingface_hub import hf_hub_download
+
 import wandb
-
-from transformer_lens.HookedTransformer import HookedTransformer
-
 from acdc.TLACDCEdge import (
-    TorchIndex,
-    EdgeInfo,
     EdgeType,
-)  # these introduce several important classes !!!
+    TorchIndex,
+)
 
 
 class OrderedDefaultdict(defaultdict):
@@ -54,10 +49,15 @@ def kl_divergence(
         base_model_logprobs = base_model_logprobs[:, -1, :]
 
     logprobs = F.log_softmax(logits, dim=-1)
-    kl_div = F.kl_div(logprobs, base_model_logprobs, log_target=True, reduction="none").sum(dim=-1)
+    kl_div = F.kl_div(
+        logprobs, base_model_logprobs, log_target=True, reduction="none"
+    ).sum(dim=-1)
 
     if mask_repeat_candidates is not None:
-        assert kl_div.shape == mask_repeat_candidates.shape, (kl_div.shape, mask_repeat_candidates.shape)
+        assert kl_div.shape == mask_repeat_candidates.shape, (
+            kl_div.shape,
+            mask_repeat_candidates.shape,
+        )
         answer = kl_div[mask_repeat_candidates]
     elif not last_seq_element_only:
         assert kl_div.ndim == 2, kl_div.shape
@@ -86,7 +86,9 @@ def negative_log_probs(
 
     # Subtract a baseline for each element -- which could be 0 or the NLL of the base_model_logprobs
     nll_all = (
-        F.nll_loss(logprobs.view(-1, logprobs.size(-1)), labels.view(-1), reduction="none").view(logprobs.size()[:-1])
+        F.nll_loss(
+            logprobs.view(-1, logprobs.size(-1)), labels.view(-1), reduction="none"
+        ).view(logprobs.size()[:-1])
         - baseline
     )
 
@@ -146,7 +148,9 @@ class MatchNLLMetric:
         )
 
 
-def logit_diff_metric(logits, correct_labels, wrong_labels, return_one_element: bool = True) -> torch.Tensor:
+def logit_diff_metric(
+    logits, correct_labels, wrong_labels, return_one_element: bool = True
+) -> torch.Tensor:
     range = torch.arange(len(logits))
     correct_logits = logits[range, -1, correct_labels]
     incorrect_logits = logits[range, -1, wrong_labels]
@@ -159,7 +163,9 @@ def logit_diff_metric(logits, correct_labels, wrong_labels, return_one_element: 
         return -(correct_logits - incorrect_logits).view(-1)
 
 
-def frac_correct_metric(logits, correct_labels, wrong_labels, return_one_element: bool = True) -> torch.Tensor:
+def frac_correct_metric(
+    logits, correct_labels, wrong_labels, return_one_element: bool = True
+) -> torch.Tensor:
     range = torch.arange(len(logits))
     correct_logits = logits[range, -1, correct_labels]
     incorrect_logits = logits[range, -1, wrong_labels]
@@ -192,7 +198,9 @@ def make_nd_dict(end_type, n=3) -> Any:
         return OrderedDefaultdict(lambda: defaultdict(lambda: defaultdict(end_type)))
 
     if n == 4:
-        return OrderedDefaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(end_type))))
+        return OrderedDefaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(end_type)))
+        )
 
 
 def cleanup():
@@ -231,7 +239,10 @@ def extract_info(string):
     parent_list = None
     if parent_list_str:
         parent_list_items = parent_list_str.split(", ")
-        parent_list = [ast.literal_eval(item if item != "COL" else "None") for item in parent_list_items]
+        parent_list = [
+            ast.literal_eval(item if item != "COL" else "None")
+            for item in parent_list_items
+        ]
 
     # Extract current node info
     current_match = re.search(current_pattern, string)
@@ -240,7 +251,10 @@ def extract_info(string):
     current_list = None
     if current_list_str:
         current_list_items = current_list_str.split(", ")
-        current_list = [ast.literal_eval(item if item != "COL" else "None") for item in current_list_items]
+        current_list = [
+            ast.literal_eval(item if item != "COL" else "None")
+            for item in current_list_items
+        ]
 
     return (
         parent_name.replace("hook_resid_mid", "hook_mlp_in"),
@@ -255,7 +269,9 @@ def extract_info(string):
 # ----------------------------------
 
 
-def get_present_nodes(graph) -> tuple[set[tuple[str, TorchIndex]], set[tuple[str, TorchIndex]]]:
+def get_present_nodes(
+    graph,
+) -> tuple[set[tuple[str, TorchIndex]], set[tuple[str, TorchIndex]]]:
     present_nodes = set()
     all_nodes = set()
 
@@ -332,7 +348,10 @@ def get_node_stats(ground_truth, recovered) -> dict[str, int]:
 
     assert (
         counts["all"]
-        == counts["true positive"] + counts["false positive"] + counts["true negative"] + counts["false negative"]
+        == counts["true positive"]
+        + counts["false positive"]
+        + counts["true negative"]
+        + counts["false negative"]
     )
     assert counts["ground truth"] == counts["true positive"] + counts["false negative"]
     assert counts["recovered"] == counts["true positive"] + counts["false positive"]
@@ -340,7 +359,10 @@ def get_node_stats(ground_truth, recovered) -> dict[str, int]:
     # Idk if this one is any constraint
     assert (
         counts["all"]
-        == counts["ground truth"] + counts["recovered"] - counts["true positive"] + counts["true negative"]
+        == counts["ground truth"]
+        + counts["recovered"]
+        - counts["true positive"]
+        + counts["true negative"]
     )
 
     return counts
@@ -375,17 +397,34 @@ def get_edge_stats(ground_truth, recovered):
             else:
                 counts["true negative"] += 1
 
-    counts["all"] = len([e for e in ground_truth_all_edges.values() if e.edge_type != EdgeType.PLACEHOLDER])
+    counts["all"] = len(
+        [
+            e
+            for e in ground_truth_all_edges.values()
+            if e.edge_type != EdgeType.PLACEHOLDER
+        ]
+    )
     counts["ground truth"] = len(
-        [e for e in ground_truth_all_edges.values() if e.edge_type != EdgeType.PLACEHOLDER and e.present]
+        [
+            e
+            for e in ground_truth_all_edges.values()
+            if e.edge_type != EdgeType.PLACEHOLDER and e.present
+        ]
     )
     counts["recovered"] = len(
-        [e for e in recovered_all_edges.values() if e.edge_type != EdgeType.PLACEHOLDER and e.present]
+        [
+            e
+            for e in recovered_all_edges.values()
+            if e.edge_type != EdgeType.PLACEHOLDER and e.present
+        ]
     )
 
     assert (
         counts["all"]
-        == counts["true positive"] + counts["false positive"] + counts["true negative"] + counts["false negative"]
+        == counts["true positive"]
+        + counts["false positive"]
+        + counts["true negative"]
+        + counts["false negative"]
     )
     assert counts["ground truth"] == counts["true positive"] + counts["false negative"]
     assert counts["recovered"] == counts["true positive"] + counts["false positive"]
@@ -393,7 +432,10 @@ def get_edge_stats(ground_truth, recovered):
     # Idk if this one is any constraint
     assert (
         counts["all"]
-        == counts["ground truth"] + counts["recovered"] - counts["true positive"] + counts["true negative"]
+        == counts["ground truth"]
+        + counts["recovered"]
+        - counts["true positive"]
+        + counts["true negative"]
     )
 
     return counts
@@ -425,7 +467,9 @@ def reset_network(task: str, device, model: torch.nn.Module) -> None:
         "docstring": "docstring_reset_heads_neurons.pt",
         "greaterthan": "greaterthan_reset_heads_neurons.pt",
     }[task]
-    random_model_file = hf_hub_download(repo_id="agaralon/acdc_reset_models", filename=filename)
+    random_model_file = hf_hub_download(
+        repo_id="agaralon/acdc_reset_models", filename=filename
+    )
     reset_state_dict = torch.load(random_model_file, map_location=device)
     model.load_state_dict(reset_state_dict, strict=False)
 

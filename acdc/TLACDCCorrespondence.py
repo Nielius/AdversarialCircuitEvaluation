@@ -1,16 +1,18 @@
-from acdc.TLACDCInterpNode import TLACDCInterpNode
 from collections import OrderedDict
+from typing import Iterator, List, MutableMapping
+
+# these introduce several important classes !!!
+from acdc.acdc_utils import OrderedDefaultdict, make_nd_dict
 from acdc.TLACDCEdge import (
-    TorchIndex,
+    EdgeCollection,
     EdgeInfo,
     EdgeType,
-    HookPointName,
-    EdgeCollection,
     EdgeWithInfo,
+    HookPointName,
     IndexedHookPointName,
-)  # these introduce several important classes !!!
-from acdc.acdc_utils import OrderedDefaultdict, make_nd_dict
-from typing import List, Dict, MutableMapping, Optional, Tuple, Union, Set, Callable, TypeVar, Iterable, Any, Iterator
+    TorchIndex,
+)
+from acdc.TLACDCInterpNode import TLACDCInterpNode
 
 
 class TLACDCCorrespondence:
@@ -21,7 +23,11 @@ class TLACDCCorrespondence:
 
     nodes: MutableMapping[HookPointName, MutableMapping[TorchIndex, TLACDCInterpNode]]
     edges: MutableMapping[
-        HookPointName, MutableMapping[TorchIndex, MutableMapping[HookPointName, MutableMapping[TorchIndex, EdgeInfo]]]
+        HookPointName,
+        MutableMapping[
+            TorchIndex,
+            MutableMapping[HookPointName, MutableMapping[TorchIndex, EdgeInfo]],
+        ],
     ]
 
     def __init__(self):
@@ -29,11 +35,17 @@ class TLACDCCorrespondence:
         self.edges = make_nd_dict(end_type=None, n=4)
 
     def first_node(self):
-        return self.nodes[list(self.nodes.keys())[0]][list(self.nodes[list(self.nodes.keys())[0]].keys())[0]]
+        return self.nodes[list(self.nodes.keys())[0]][
+            list(self.nodes[list(self.nodes.keys())[0]].keys())[0]
+        ]
 
     def nodes_list(self) -> List[TLACDCInterpNode]:
         """Concatenate all nodes in the graph"""
-        return [node for by_index_list in self.nodes.values() for node in by_index_list.values()]
+        return [
+            node
+            for by_index_list in self.nodes.values()
+            for node in by_index_list.values()
+        ]
 
     def edge_iterator(self, present_only: bool = False) -> Iterator[EdgeWithInfo]:
         for child_name, rest1 in self.edges.items():
@@ -50,14 +62,21 @@ class TLACDCCorrespondence:
 
                         if not present_only or edge_info.present:
                             yield EdgeWithInfo(
-                                child=IndexedHookPointName(hook_name=parent_name, index=parent_index),
-                                parent=IndexedHookPointName(hook_name=child_name, index=child_index),
+                                child=IndexedHookPointName(
+                                    hook_name=parent_name, index=parent_index
+                                ),
+                                parent=IndexedHookPointName(
+                                    hook_name=child_name, index=child_index
+                                ),
                                 edge_info=edge_info,
                             )
 
     def edge_dict(self, present_only: bool = False) -> EdgeCollection:
         """Concatenate all edges in the graph"""
-        return dict(edge.to_tuple_format() for edge in self.edge_iterator(present_only=present_only))
+        return dict(
+            edge.to_tuple_format()
+            for edge in self.edge_iterator(present_only=present_only)
+        )
 
     def add_node(self, node: TLACDCInterpNode, safe=True):
         if safe:
@@ -77,12 +96,17 @@ class TLACDCCorrespondence:
             if child_node not in self.nodes_list():
                 self.add_node(child_node)
 
-        assert child_node.incoming_edge_type == edge.edge_type, (child_node.incoming_edge_type, edge.edge_type)
+        assert child_node.incoming_edge_type == edge.edge_type, (
+            child_node.incoming_edge_type,
+            edge.edge_type,
+        )
 
         parent_node._add_child(child_node)
         child_node._add_parent(parent_node)
 
-        self.edges[child_node.name][child_node.index][parent_node.name][parent_node.index] = edge
+        self.edges[child_node.name][child_node.index][parent_node.name][
+            parent_node.index
+        ] = edge
 
     def remove_edge(
         self,
@@ -191,14 +215,18 @@ class TLACDCCorrespondence:
                     hook_letter_name = f"blocks.{layer_idx}.attn.hook_{letter}"
                     hook_letter_slice = TorchIndex([None, None, head_idx])
                     hook_letter_node = TLACDCInterpNode(
-                        name=hook_letter_name, index=hook_letter_slice, incoming_edge_type=EdgeType.DIRECT_COMPUTATION
+                        name=hook_letter_name,
+                        index=hook_letter_slice,
+                        incoming_edge_type=EdgeType.DIRECT_COMPUTATION,
                     )
                     correspondence.add_node(hook_letter_node)
 
                     hook_letter_input_name = f"blocks.{layer_idx}.hook_{letter}_input"
                     hook_letter_input_slice = TorchIndex([None, None, head_idx])
                     hook_letter_input_node = TLACDCInterpNode(
-                        name=hook_letter_input_name, index=hook_letter_input_slice, incoming_edge_type=EdgeType.ADDITION
+                        name=hook_letter_input_name,
+                        index=hook_letter_input_slice,
+                        incoming_edge_type=EdgeType.ADDITION,
                     )
                     correspondence.add_node(hook_letter_input_node)
 

@@ -17,15 +17,16 @@ from pathlib import Path
 
 import IPython
 import torch
-import wandb
 from IPython.display import Image, display
 
-from acdc.TLACDCExperiment import TLACDCExperiment, WandbSettings
+import wandb
 from acdc.acdc_graphics import show
 from acdc.acdc_utils import (
-    reset_network,
     ct,
-)  # these introduce several important classes !!!
+    reset_network,
+)
+
+# these introduce several important classes !!!
 from acdc.docstring.utils import get_all_docstring_things
 from acdc.greaterthan.utils import get_all_greaterthan_things
 from acdc.induction.utils import (
@@ -35,6 +36,7 @@ from acdc.ioi.utils import (
     get_all_ioi_things,
 )
 from acdc.logic_gates.utils import get_all_logic_gate_things
+from acdc.TLACDCExperiment import TLACDCExperiment, WandbSettings
 from acdc.tracr_task.utils import get_all_tracr_things
 
 IN_COLAB = False
@@ -48,10 +50,20 @@ torch.autograd.set_grad_enabled(False)
 # We'll reproduce </p>
 
 # %%
-parser = argparse.ArgumentParser(description="Used to launch ACDC runs. Only task and threshold are required")
+parser = argparse.ArgumentParser(
+    description="Used to launch ACDC runs. Only task and threshold are required"
+)
 
 
-task_choices = ["ioi", "docstring", "induction", "tracr-reverse", "tracr-proportion", "greaterthan", "or_gate"]
+task_choices = [
+    "ioi",
+    "docstring",
+    "induction",
+    "tracr-reverse",
+    "tracr-proportion",
+    "greaterthan",
+    "or_gate",
+]
 parser.add_argument(
     "--task",
     type=str,
@@ -59,7 +71,9 @@ parser.add_argument(
     choices=task_choices,
     help=f"Choose a task from the available options: {task_choices}",
 )
-parser.add_argument("--threshold", type=float, required=True, help="Value for THRESHOLD")
+parser.add_argument(
+    "--threshold", type=float, required=True, help="Value for THRESHOLD"
+)
 parser.add_argument(
     "--first-cache-cpu",
     type=str,
@@ -77,15 +91,33 @@ parser.add_argument(
 parser.add_argument("--zero-ablation", action="store_true", help="Use zero ablation")
 parser.add_argument("--using-wandb", action="store_true", help="Use wandb")
 parser.add_argument(
-    "--wandb-entity-name", type=str, required=False, default="remix_school-of-rock", help="Value for WANDB_ENTITY_NAME"
+    "--wandb-entity-name",
+    type=str,
+    required=False,
+    default="remix_school-of-rock",
+    help="Value for WANDB_ENTITY_NAME",
 )
 parser.add_argument(
-    "--wandb-group-name", type=str, required=False, default="default", help="Value for WANDB_GROUP_NAME"
+    "--wandb-group-name",
+    type=str,
+    required=False,
+    default="default",
+    help="Value for WANDB_GROUP_NAME",
 )
 parser.add_argument(
-    "--wandb-project-name", type=str, required=False, default="acdc", help="Value for WANDB_PROJECT_NAME"
+    "--wandb-project-name",
+    type=str,
+    required=False,
+    default="acdc",
+    help="Value for WANDB_PROJECT_NAME",
 )
-parser.add_argument("--wandb-run-name", type=str, required=False, default=None, help="Value for WANDB_RUN_NAME")
+parser.add_argument(
+    "--wandb-run-name",
+    type=str,
+    required=False,
+    default=None,
+    help="Value for WANDB_RUN_NAME",
+)
 parser.add_argument("--wandb-dir", type=str, default="/tmp/wandb")
 parser.add_argument("--wandb-mode", type=str, default="online")
 parser.add_argument("--indices-mode", type=str, default="normal")
@@ -97,13 +129,27 @@ parser.add_argument(
     default=0,
     help="Whether to reset the network we're operating on before running interp on it",
 )
-parser.add_argument("--metric", type=str, default="kl_div", help="Which metric to use for the experiment")
-parser.add_argument("--torch-num-threads", type=int, default=0, help="How many threads to use for torch (0=all)")
+parser.add_argument(
+    "--metric",
+    type=str,
+    default="kl_div",
+    help="Which metric to use for the experiment",
+)
+parser.add_argument(
+    "--torch-num-threads",
+    type=int,
+    default=0,
+    help="How many threads to use for torch (0=all)",
+)
 parser.add_argument("--seed", type=int, default=1234)
 parser.add_argument("--max-num-epochs", type=int, default=100_000)
-parser.add_argument("--single-step", action="store_true", help="Use single step, mostly for testing")
 parser.add_argument(
-    "--abs-value-threshold", action="store_true", help="Use the absolute value of the result to check threshold"
+    "--single-step", action="store_true", help="Use single step, mostly for testing"
+)
+parser.add_argument(
+    "--abs-value-threshold",
+    action="store_true",
+    help="Use the absolute value of the result to check threshold",
 )
 
 
@@ -123,7 +169,9 @@ elif args.first_cache_cpu.lower() == "false":
 elif args.first_cache_cpu.lower() == "true":
     ONLINE_CACHE_CPU = True
 else:
-    raise ValueError(f"first_cache_cpu must be either True or False, got {args.first_cache_cpu}")
+    raise ValueError(
+        f"first_cache_cpu must be either True or False, got {args.first_cache_cpu}"
+    )
 if args.second_cache_cpu is None:
     CORRUPTED_CACHE_CPU = True
 elif args.second_cache_cpu.lower() == "false":
@@ -131,7 +179,9 @@ elif args.second_cache_cpu.lower() == "false":
 elif args.second_cache_cpu.lower() == "true":
     CORRUPTED_CACHE_CPU = True
 else:
-    raise ValueError(f"second_cache_cpu must be either True or False, got {args.second_cache_cpu}")
+    raise ValueError(
+        f"second_cache_cpu must be either True or False, got {args.second_cache_cpu}"
+    )
 THRESHOLD = args.threshold  # only used if >= 0.0
 ZERO_ABLATION = True if args.zero_ablation else False
 USING_WANDB = True if args.using_wandb else False
@@ -155,7 +205,9 @@ use_pos_embed = TASK.startswith("tracr")
 
 if TASK == "ioi":
     num_examples = 100
-    things = get_all_ioi_things(num_examples=num_examples, device=DEVICE, metric_name=args.metric)
+    things = get_all_ioi_things(
+        num_examples=num_examples, device=DEVICE, metric_name=args.metric
+    )
 elif TASK == "or_gate":
     num_examples = 1
     seq_len = 1
@@ -185,7 +237,9 @@ elif TASK == "tracr-proportion":
 elif TASK == "induction":
     num_examples = 10 if IN_COLAB else 50
     seq_len = 300
-    things = get_all_induction_things(num_examples=num_examples, seq_len=seq_len, device=DEVICE, metric=args.metric)
+    things = get_all_induction_things(
+        num_examples=num_examples, seq_len=seq_len, device=DEVICE, metric=args.metric
+    )
 elif TASK == "docstring":
     num_examples = 50
     seq_len = 41
@@ -198,7 +252,9 @@ elif TASK == "docstring":
     )
 elif TASK == "greaterthan":
     num_examples = 100 if not args.single_step else 3
-    things = get_all_greaterthan_things(num_examples=num_examples, metric_name=args.metric, device=DEVICE)
+    things = get_all_greaterthan_things(
+        num_examples=num_examples, metric_name=args.metric, device=DEVICE
+    )
 else:
     raise ValueError(f"Unknown task {TASK}")
 
@@ -225,7 +281,10 @@ try:
     with open(__file__, "r") as f:
         notes = f.read()
 except Exception as e:
-    notes = "No notes generated, expected when running in an .ipynb file. Error is " + str(e)
+    notes = (
+        "No notes generated, expected when running in an .ipynb file. Error is "
+        + str(e)
+    )
 
 tl_model.reset_hooks()
 
@@ -235,9 +294,7 @@ torch.cuda.empty_cache()
 
 # Setup wandb if needed
 if WANDB_RUN_NAME is None or IPython.get_ipython() is not None:
-    WANDB_RUN_NAME = (
-        f"{ct()}{'_randomindices' if INDICES_MODE=='random' else ''}_{THRESHOLD}{'_zero' if ZERO_ABLATION else ''}"
-    )
+    WANDB_RUN_NAME = f"{ct()}{'_randomindices' if INDICES_MODE=='random' else ''}_{THRESHOLD}{'_zero' if ZERO_ABLATION else ''}"
 else:
     assert WANDB_RUN_NAME is not None, "I want named runs, always"
 
@@ -248,16 +305,20 @@ else:
 exp = TLACDCExperiment(
     model=tl_model,
     threshold=THRESHOLD,
-    wandb_settings=WandbSettings(
-        wandb_entity_name=WANDB_ENTITY_NAME,
-        wandb_project_name=WANDB_PROJECT_NAME,
-        wandb_run_name=WANDB_RUN_NAME,
-        wandb_group_name=WANDB_GROUP_NAME,
-        wandb_notes=notes,
-        wandb_dir=args.wandb_dir,
-        wandb_mode=args.wandb_mode,
-        wandb_config=args,
-    ) if USING_WANDB else None,
+    wandb_settings=(
+        WandbSettings(
+            wandb_entity_name=WANDB_ENTITY_NAME,
+            wandb_project_name=WANDB_PROJECT_NAME,
+            wandb_run_name=WANDB_RUN_NAME,
+            wandb_group_name=WANDB_GROUP_NAME,
+            wandb_notes=notes,
+            wandb_dir=args.wandb_dir,
+            wandb_mode=args.wandb_mode,
+            wandb_config=args,
+        )
+        if USING_WANDB
+        else None
+    ),
     zero_ablation=ZERO_ABLATION,
     abs_value_threshold=args.abs_value_threshold,
     ds=toks_int_values,
@@ -318,7 +379,7 @@ for i in range(
 exp.save_edges("another_final_edges.pkl")
 
 if USING_WANDB:
-    edges_fname = f"edges.pth"
+    edges_fname = "edges.pth"
     exp.save_edges(edges_fname)
     artifact = wandb.Artifact(edges_fname, type="dataset")
     artifact.add_file(edges_fname)

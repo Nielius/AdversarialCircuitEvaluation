@@ -1,6 +1,6 @@
-from experiments.launcher import KubernetesJob, WandbIdentifier, launch
-import numpy as np
 import random
+
+from experiments.launcher import KubernetesJob, WandbIdentifier, launch
 
 
 def main(use_kubernetes: bool, testing: bool, CPU: int = 4):
@@ -34,9 +34,15 @@ def main(use_kubernetes: bool, testing: bool, CPU: int = 4):
         launch(
             [command],
             name=wandb_identifier.run_name,
-            job=None
-            if not use_kubernetes
-            else KubernetesJob(container="ghcr.io/rhaps0dy/automatic-circuit-discovery:abstract-0.0", cpu=CPU, gpu=1),
+            job=(
+                None
+                if not use_kubernetes
+                else KubernetesJob(
+                    container="ghcr.io/rhaps0dy/automatic-circuit-discovery:abstract-0.0",
+                    cpu=CPU,
+                    gpu=1,
+                )
+            ),
             check_wandb=wandb_identifier,
             just_print_commands=False,
         )
