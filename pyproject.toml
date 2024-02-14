@@ -55,6 +55,7 @@ filterwarnings = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+testpaths = "acdc subnetwork_probing experiments notebooks tests"
 
 [tool.ruff]
 line-length = 120
