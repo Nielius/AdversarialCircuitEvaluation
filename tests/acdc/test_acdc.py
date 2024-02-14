@@ -69,9 +69,7 @@ def test_induction_several_steps():
         exp.step()
 
     edges_to_consider = {
-        edge_tuple: edge
-        for edge_tuple, edge in exp.corr.edge_dict().items()
-        if edge.effect_size is not None
+        edge_tuple: edge for edge_tuple, edge in exp.corr.edge_dict().items() if edge.effect_size is not None
     }
 
     EDGE_EFFECTS = OrderedDict(
@@ -276,17 +274,11 @@ def test_full_correspondence_zero_kl(
             metric_name="l2",
         )
     elif task == "tracr-reverse":
-        things = get_all_tracr_things(
-            task="reverse", num_examples=6, device=device, metric_name="l2"
-        )
+        things = get_all_tracr_things(task="reverse", num_examples=6, device=device, metric_name="l2")
     elif task == "induction":
-        things = get_all_induction_things(
-            num_examples=100, seq_len=20, device=device, metric=metric_name
-        )
+        things = get_all_induction_things(num_examples=100, seq_len=20, device=device, metric=metric_name)
     elif task == "ioi":
-        things = get_all_ioi_things(
-            num_examples=num_examples, device=device, metric_name=metric_name
-        )
+        things = get_all_ioi_things(num_examples=num_examples, device=device, metric_name=metric_name)
     elif task == "docstring":
         things = get_all_docstring_things(
             num_examples=num_examples,
@@ -296,9 +288,7 @@ def test_full_correspondence_zero_kl(
             correct_incorrect_wandb=False,
         )
     elif task == "greaterthan":
-        things = get_all_greaterthan_things(
-            num_examples=num_examples, metric_name=metric_name, device=device
-        )
+        things = get_all_greaterthan_things(num_examples=num_examples, metric_name=metric_name, device=device)
     else:
         raise ValueError(task)
 
@@ -324,7 +314,5 @@ def test_full_correspondence_zero_kl(
         e.present = True
 
     with torch.no_grad():
-        out = exp.call_metric_with_corr(
-            corr, things.test_metrics["kl_div"], things.test_data
-        )
+        out = exp.call_metric_with_corr(corr, things.test_metrics["kl_div"], things.test_data)
     assert abs(out) < 1e-6, f"{out} should be abs(out) < 1e-6"

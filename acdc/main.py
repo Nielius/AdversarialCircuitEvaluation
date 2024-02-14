@@ -73,9 +73,7 @@ try:
         get_all_tracr_things,
     )
 except Exception as e:
-    print(
-        f"Could not import `tracr` because {e}; the rest of the file should work but you cannot use the tracr tasks"
-    )
+    print(f"Could not import `tracr` because {e}; the rest of the file should work but you cannot use the tracr tasks")
 import argparse
 
 from acdc.acdc_graphics import show
@@ -105,9 +103,7 @@ torch.autograd.set_grad_enabled(False)
 # We'll reproduce </p>
 
 # %%
-parser = argparse.ArgumentParser(
-    description="Used to launch ACDC runs. Only task and threshold are required"
-)
+parser = argparse.ArgumentParser(description="Used to launch ACDC runs. Only task and threshold are required")
 
 
 task_choices = [
@@ -126,9 +122,7 @@ parser.add_argument(
     choices=task_choices,
     help=f"Choose a task from the available options: {task_choices}",
 )
-parser.add_argument(
-    "--threshold", type=float, required=True, help="Value for THRESHOLD"
-)
+parser.add_argument("--threshold", type=float, required=True, help="Value for THRESHOLD")
 parser.add_argument(
     "--first-cache-cpu",
     type=str,
@@ -198,9 +192,7 @@ parser.add_argument(
 )
 parser.add_argument("--seed", type=int, default=1234)
 parser.add_argument("--max-num-epochs", type=int, default=100_000)
-parser.add_argument(
-    "--single-step", action="store_true", help="Use single step, mostly for testing"
-)
+parser.add_argument("--single-step", action="store_true", help="Use single step, mostly for testing")
 parser.add_argument(
     "--abs-value-threshold",
     action="store_true",
@@ -219,9 +211,7 @@ if ipython is not None:
 --indices-mode=reverse\
 --first-cache-cpu=False\
 --second-cache-cpu=False\
---max-num-epochs=100000""".split(
-                "\\\n"
-            )
+--max-num-epochs=100000""".split("\\\n")
         ]
     )
 else:
@@ -242,9 +232,7 @@ elif args.first_cache_cpu.lower() == "false":
 elif args.first_cache_cpu.lower() == "true":
     ONLINE_CACHE_CPU = True
 else:
-    raise ValueError(
-        f"first_cache_cpu must be either True or False, got {args.first_cache_cpu}"
-    )
+    raise ValueError(f"first_cache_cpu must be either True or False, got {args.first_cache_cpu}")
 if args.second_cache_cpu is None:
     CORRUPTED_CACHE_CPU = True
 elif args.second_cache_cpu.lower() == "false":
@@ -252,9 +240,7 @@ elif args.second_cache_cpu.lower() == "false":
 elif args.second_cache_cpu.lower() == "true":
     CORRUPTED_CACHE_CPU = True
 else:
-    raise ValueError(
-        f"second_cache_cpu must be either True or False, got {args.second_cache_cpu}"
-    )
+    raise ValueError(f"second_cache_cpu must be either True or False, got {args.second_cache_cpu}")
 THRESHOLD = args.threshold  # only used if >= 0.0
 ZERO_ABLATION = True if args.zero_ablation else False
 USING_WANDB = True if args.using_wandb else False
@@ -278,9 +264,7 @@ use_pos_embed = TASK.startswith("tracr")
 
 if TASK == "ioi":
     num_examples = 100
-    things = get_all_ioi_things(
-        num_examples=num_examples, device=DEVICE, metric_name=args.metric
-    )
+    things = get_all_ioi_things(num_examples=num_examples, device=DEVICE, metric_name=args.metric)
 elif TASK == "or_gate":
     num_examples = 1
     seq_len = 1
@@ -310,9 +294,7 @@ elif TASK == "tracr-proportion":
 elif TASK == "induction":
     num_examples = 10 if IN_COLAB else 50
     seq_len = 300
-    things = get_all_induction_things(
-        num_examples=num_examples, seq_len=seq_len, device=DEVICE, metric=args.metric
-    )
+    things = get_all_induction_things(num_examples=num_examples, seq_len=seq_len, device=DEVICE, metric=args.metric)
 elif TASK == "docstring":
     num_examples = 50
     seq_len = 41
@@ -325,9 +307,7 @@ elif TASK == "docstring":
     )
 elif TASK == "greaterthan":
     num_examples = 100
-    things = get_all_greaterthan_things(
-        num_examples=num_examples, metric_name=args.metric, device=DEVICE
-    )
+    things = get_all_greaterthan_things(num_examples=num_examples, metric_name=args.metric, device=DEVICE)
 else:
     raise ValueError(f"Unknown task {TASK}")
 
@@ -354,10 +334,7 @@ try:
     with open(__file__, "r") as f:
         notes = f.read()
 except Exception as e:
-    notes = (
-        "No notes generated, expected when running in an .ipynb file. Error is "
-        + str(e)
-    )
+    notes = "No notes generated, expected when running in an .ipynb file. Error is " + str(e)
 
 tl_model.reset_hooks()
 
@@ -367,7 +344,9 @@ torch.cuda.empty_cache()
 
 # Setup wandb if needed
 if WANDB_RUN_NAME is None or IPython.get_ipython() is not None:
-    WANDB_RUN_NAME = f"{ct()}{'_randomindices' if INDICES_MODE=='random' else ''}_{THRESHOLD}{'_zero' if ZERO_ABLATION else ''}"
+    WANDB_RUN_NAME = (
+        f"{ct()}{'_randomindices' if INDICES_MODE=='random' else ''}_{THRESHOLD}{'_zero' if ZERO_ABLATION else ''}"
+    )
 else:
     assert WANDB_RUN_NAME is not None, "I want named runs, always"
 

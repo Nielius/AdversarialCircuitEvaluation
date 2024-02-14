@@ -144,7 +144,5 @@ fig.update_xaxes(
     showticklabels=False,
     ticks="",
 )
-fig.update_yaxes(
-    showline=False, zeroline=False, showgrid=False, row=1, col=2, side="right"
-)
+fig.update_yaxes(showline=False, zeroline=False, showgrid=False, row=1, col=2, side="right")
 fig.show()

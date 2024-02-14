@@ -13,9 +13,7 @@ from transformer_lens.HookedTransformer import (
 from acdc.acdc_utils import kl_divergence
 from acdc.docstring.utils import AllDataThings
 
-MAX_LOGIC_GATE_SEQ_LEN = (
-    100_000  # Can be increased further provided numerics and memory do not explode
-)
+MAX_LOGIC_GATE_SEQ_LEN = 100_000  # Can be increased further provided numerics and memory do not explode
 
 
 def get_logic_gate_model(
@@ -91,9 +89,7 @@ def get_logic_gate_model(
 
         # Write the output to residual component 2
         # (TODO: I think we could get away with 2 components here?)
-        model.blocks[0].mlp.W_out[
-            0, 2
-        ] = MAX_LOGIC_GATE_SEQ_LEN  # Shape [d_mlp d_model]
+        model.blocks[0].mlp.W_out[0, 2] = MAX_LOGIC_GATE_SEQ_LEN  # Shape [d_mlp d_model]
 
         model.unembed.W_U[2, 0] = 1.0  # Shape [d_model d_vocab_out]
 
@@ -135,9 +131,7 @@ def test_and_logical_model():
 
     and_output = and_model(input)[:, -1, :]
     assert torch.equal(and_output[: 2**seq_len - 1], torch.zeros(2**seq_len - 1, 1))
-    torch.testing.assert_close(
-        and_output[2**seq_len - 1], torch.ones(1).to(torch.double)
-    )
+    torch.testing.assert_close(and_output[2**seq_len - 1], torch.ones(1).to(torch.double))
 
 
 # %%
@@ -154,9 +148,7 @@ def get_all_logic_gate_things(
 
     model = get_logic_gate_model(mode=mode, seq_len=seq_len, device=device)
     # Convert the set of binary string back llto tensor
-    data = torch.tensor(
-        [[0.0]]
-    ).long()  # Input is actually meaningless, all that matters is Attention Heads 0 and 1
+    data = torch.tensor([[0.0]]).long()  # Input is actually meaningless, all that matters is Attention Heads 0 and 1
     correct_answers = data.clone().to(torch.double) + 1
 
     def validation_metric(output, correct):

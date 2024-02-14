@@ -22,11 +22,7 @@ def main(testing: bool):
                 for threshold in [1.0] if testing else thresholds:
                     command = [
                         "python",
-                        (
-                            "acdc/main.py"
-                            if testing
-                            else "/Automatic-Circuit-Discovery/acdc/main.py"
-                        ),
+                        ("acdc/main.py" if testing else "/Automatic-Circuit-Discovery/acdc/main.py"),
                         "--task=docstring",
                         f"--threshold={threshold:.5f}",
                         "--using-wandb",

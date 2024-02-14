@@ -82,9 +82,7 @@ class TorchIndex:
                 assert all([type(x) == int for x in arg])
 
         # make an object that can be indexed into a tensor
-        self.as_index = tuple(
-            [slice(None) if x is None else x for x in list_of_things_in_tuple]
-        )
+        self.as_index = tuple([slice(None) if x is None else x for x in list_of_things_in_tuple])
 
         # make an object that can be hashed (so used as a dictionary key)
         self.hashable_tuple = tuple(list_of_things_in_tuple)
@@ -120,12 +118,7 @@ class TorchIndex:
 
 
 def is_attn_hook_point(name: HookPointName) -> bool:
-    if (
-        "mlp" in name
-        or "resid" in name
-        or "embed" in name
-        or name == "blocks.0.hook_resid_pre"
-    ):
+    if "mlp" in name or "resid" in name or "embed" in name or name == "blocks.0.hook_resid_pre":
         return False
     return True
 
@@ -142,9 +135,7 @@ class IndexedHookPointName:
         return f"{self.hook_name}{self.index}"
 
     @classmethod
-    def list_from_hook_point(
-        cls, name: HookPointName, n_heads: int
-    ) -> list["IndexedHookPointName"]:
+    def list_from_hook_point(cls, name: HookPointName, n_heads: int) -> list["IndexedHookPointName"]:
         """Provides a list of all IndexedHookPointNames that are sub-components of the given HookPointName."""
         if is_attn_hook_point(name):
             return [
@@ -179,23 +170,15 @@ class Edge:
         parent_hook_index: TorchIndex | list | tuple,
     ) -> "Edge":
         child_hook_torch_index = (
-            TorchIndex(child_hook_index)
-            if not isinstance(child_hook_index, TorchIndex)
-            else child_hook_index
+            TorchIndex(child_hook_index) if not isinstance(child_hook_index, TorchIndex) else child_hook_index
         )
         parent_hook_torch_index = (
-            TorchIndex(parent_hook_index)
-            if not isinstance(parent_hook_index, TorchIndex)
-            else parent_hook_index
+            TorchIndex(parent_hook_index) if not isinstance(parent_hook_index, TorchIndex) else parent_hook_index
         )
 
         return cls(
-            child=IndexedHookPointName(
-                hook_name=child_hook_name, index=child_hook_torch_index
-            ),
-            parent=IndexedHookPointName(
-                hook_name=parent_hook_name, index=parent_hook_torch_index
-            ),
+            child=IndexedHookPointName(hook_name=child_hook_name, index=child_hook_torch_index),
+            parent=IndexedHookPointName(hook_name=parent_hook_name, index=parent_hook_torch_index),
         )
 
 
@@ -226,6 +209,4 @@ class EdgeWithInfo:
 
 
 # I think i want to deprecate this kind of object
-EdgeCollection: TypeAlias = dict[
-    tuple[HookPointName, TorchIndex, HookPointName, TorchIndex], EdgeInfo
-]
+EdgeCollection: TypeAlias = dict[tuple[HookPointName, TorchIndex, HookPointName, TorchIndex], EdgeInfo]

@@ -46,9 +46,7 @@ def get_good_induction_candidates(num_examples=None, seq_len=None, device=None):
     good_induction_candidates_fname = huggingface_hub.hf_hub_download(
         repo_id="ArthurConmy/redwood_attn_2l", filename="good_induction_candidates.pt"
     )
-    good_induction_candidates = torch.load(
-        good_induction_candidates_fname, map_location=device
-    )
+    good_induction_candidates = torch.load(good_induction_candidates_fname, map_location=device)
 
     if num_examples is None:
         return good_induction_candidates
@@ -60,9 +58,7 @@ def get_mask_repeat_candidates(num_examples=None, seq_len=None, device=None):
     mask_repeat_candidates_fname = huggingface_hub.hf_hub_download(
         repo_id="ArthurConmy/redwood_attn_2l", filename="mask_repeat_candidates.pkl"
     )
-    mask_repeat_candidates = torch.load(
-        mask_repeat_candidates_fname, map_location=device
-    )
+    mask_repeat_candidates = torch.load(mask_repeat_candidates_fname, map_location=device)
     mask_repeat_candidates.requires_grad = False
 
     if num_examples is None:
@@ -82,18 +78,14 @@ def get_all_induction_things(
     tl_model = get_model(device=device)
 
     validation_data_orig = get_validation_data(device=device)
-    mask_orig = get_mask_repeat_candidates(
-        num_examples=None, device=device
-    )  # None so we get all
+    mask_orig = get_mask_repeat_candidates(num_examples=None, device=device)  # None so we get all
     assert validation_data_orig.shape == mask_orig.shape
 
     assert seq_len <= validation_data_orig.shape[1] - 1
 
     validation_slice = slice(0, num_examples)
     validation_data = validation_data_orig[validation_slice, :seq_len].contiguous()
-    validation_labels = validation_data_orig[
-        validation_slice, 1 : seq_len + 1
-    ].contiguous()
+    validation_labels = validation_data_orig[validation_slice, 1 : seq_len + 1].contiguous()
     validation_mask = mask_orig[validation_slice, :seq_len].contiguous()
 
     validation_patch_data = shuffle_tensor(validation_data, seed=data_seed).contiguous()
@@ -187,29 +179,19 @@ def one_item_per_batch(
     new_base_model_logprobs_list = []
 
     for i in range(batch_size):
-        for j in range(
-            seq_len - 1
-        ):  # -1 because we don't know what follows the last token so can't calculate losses
+        for j in range(seq_len - 1):  # -1 because we don't know what follows the last token so can't calculate losses
             if mask_rep[i, j]:
                 end_positions.append(j)
                 new_tensors.append(toks_int_values[i].cpu().clone())
-                toks_int_values_other_batch_list.append(
-                    toks_int_values_other[i].cpu().clone()
-                )
-                new_base_model_logprobs_list.append(
-                    base_model_logprobs[i].cpu().clone()
-                )
+                toks_int_values_other_batch_list.append(toks_int_values_other[i].cpu().clone())
+                new_base_model_logprobs_list.append(base_model_logprobs[i].cpu().clone())
 
-    toks_int_values_other_batch = (
-        torch.stack(toks_int_values_other_batch_list).to(toks_int_values.device).clone()
-    )
+    toks_int_values_other_batch = torch.stack(toks_int_values_other_batch_list).to(toks_int_values.device).clone()
     return_tensor = torch.stack(new_tensors).to(toks_int_values.device).clone()
     end_positions_tensor = torch.tensor(end_positions).long()
 
     new_base_model_logprobs = (
-        torch.stack(new_base_model_logprobs_list)[
-            torch.arange(len(end_positions_tensor)), end_positions_tensor
-        ]
+        torch.stack(new_base_model_logprobs_list)[torch.arange(len(end_positions_tensor)), end_positions_tensor]
         .to(toks_int_values.device)
         .clone()
     )

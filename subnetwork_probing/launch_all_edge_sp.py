@@ -68,9 +68,7 @@ def make_yamls(
                             regularization_params = base_regularization_params
                         elif metric == "greaterthan":
                             # Typical metric value range: -1.0 - 0.0
-                            regularization_params = 10 ** np.linspace(
-                                -4, 2, NUM_SPACINGS
-                            )
+                            regularization_params = 10 ** np.linspace(-4, 2, NUM_SPACINGS)
                         else:
                             raise ValueError("Unknown metric")
                         num_examples = 100
@@ -94,9 +92,7 @@ def make_yamls(
                             regularization_params = base_regularization_params
                         elif metric == "logit_diff":
                             # Typical metric value range: -0.31 -- -0.01
-                            regularization_params = 10 ** np.linspace(
-                                -4, 2, NUM_SPACINGS
-                            )
+                            regularization_params = 10 ** np.linspace(-4, 2, NUM_SPACINGS)
                         else:
                             raise ValueError("Unknown metric")
                     elif task == "induction":
@@ -118,7 +114,9 @@ def make_yamls(
                         wandb_project = "subnetwork-probing"
                         wandb_entity = "tkwa-team"
                         wandb_group = "edge_sp_group_2"
-                        wandb_name = f"tkwa-sp-{task}-{i:05d}{'-optional' if task in ['induction', 'docstring'] else ''}"
+                        wandb_name = (
+                            f"tkwa-sp-{task}-{i:05d}{'-optional' if task in ['induction', 'docstring'] else ''}"
+                        )
 
                         command = [
                             "python",
@@ -155,9 +153,7 @@ def make_yamls(
                             WANDB_JOB_NAME=wandb_name,
                             WANDB_ENTITY=wandb_entity,
                             LAUNCH_ID=f"sp-{task}-{i:05d}",
-                            COMMIT_HASH=subprocess.run(
-                                ["git", "rev-parse", "HEAD"], capture_output=True
-                            )
+                            COMMIT_HASH=subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
                             .stdout.decode()
                             .strip(),
                             CPU=4,

@@ -10,9 +10,7 @@ from subnetwork_probing.transformer_lens.transformer_lens.HookedTransformerConfi
 )
 
 
-def do_random_resample_caching(
-    model: LegacyHookedTransformer, train_data: torch.Tensor
-) -> torch.Tensor:
+def do_random_resample_caching(model: LegacyHookedTransformer, train_data: torch.Tensor) -> torch.Tensor:
     for layer in model.blocks:
         layer.attn.hook_q.is_caching = True
         layer.attn.hook_k.is_caching = True
@@ -93,9 +91,7 @@ def test_cache_writeable_forward_pass():
     # Run the model once on an unmodified cache
     rng_state = torch.random.get_rng_state()
     masked_model.do_random_resample_caching(all_task_things.validation_patch_data)
-    context_args = dict(
-        ablation="resample", ablation_data=all_task_things.validation_patch_data
-    )
+    context_args = dict(ablation="resample", ablation_data=all_task_things.validation_patch_data)
     with masked_model.with_fwd_hooks_and_new_cache(**context_args) as hooked_model:
         out1 = hooked_model(all_task_things.validation_data)
 
@@ -104,9 +100,7 @@ def test_cache_writeable_forward_pass():
     masked_model.do_random_resample_caching(all_task_things.validation_patch_data)
     for name in masked_model.ablation_cache:
         # We can't modify ActivationCache items, so we modify the underlying dict.
-        masked_model.ablation_cache.cache_dict[name] = (
-            1 - masked_model.ablation_cache[name]
-        )
+        masked_model.ablation_cache.cache_dict[name] = 1 - masked_model.ablation_cache[name]
 
     with masked_model.with_fwd_hooks_and_new_cache(**context_args) as hooked_model:
         out2 = hooked_model(all_task_things.validation_data)

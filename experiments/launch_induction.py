@@ -22,11 +22,7 @@ def main(
                 for threshold in [1.0] if testing else thresholds:
                     command = [
                         "python",
-                        (
-                            "acdc/main.py"
-                            if (not is_adria)
-                            else "/Automatic-Circuit-Discovery/acdc/main.py"
-                        ),
+                        ("acdc/main.py" if (not is_adria) else "/Automatic-Circuit-Discovery/acdc/main.py"),
                         "--task=induction",
                         f"--threshold={threshold:.5f}",
                         "--using-wandb",

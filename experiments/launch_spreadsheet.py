@@ -33,9 +33,7 @@ def main(
     seed = 486887094
     random.seed(seed)
 
-    wandb_identifier = WandbIdentifier(
-        run_name=run_name, group_name=group_name, project="acdc"
-    )
+    wandb_identifier = WandbIdentifier(run_name=run_name, group_name=group_name, project="acdc")
 
     commands: List[List[str]] = []
     for reset_network in [int(reset_networks)]:
@@ -113,11 +111,7 @@ def main(
                             f"--wandb-run-name={wandb_identifier.run_name.format(i=len(commands))}",
                             f"--wandb-group-name={wandb_identifier.group_name}",
                             f"--wandb-project-name={wandb_identifier.project}",
-                            (
-                                f"--device={'cuda' if not testing else 'cpu'}"
-                                if "tracr" not in task
-                                else "--device=cpu"
-                            ),
+                            (f"--device={'cuda' if not testing else 'cpu'}" if "tracr" not in task else "--device=cpu"),
                             f"--reset-network={reset_network}",
                             f"--seed={random.randint(0, 2**32 - 1)}",
                             f"--metric={metric}",

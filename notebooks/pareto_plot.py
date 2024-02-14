@@ -159,21 +159,15 @@ with open("histories/" + ct() + ".pkl", "wb") as f:
     pickle.dump(histories, f)
 
 if torch.norm(torch.tensor(_initial_losses) - _initial_losses[0]) > 1e-5:
-    warnings.warn(
-        f"Initial losses are not the same, so this may be an unfair comparison of {_initial_losses=}"
-    )
+    warnings.warn(f"Initial losses are not the same, so this may be an unfair comparison of {_initial_losses=}")
 if torch.norm(torch.tensor(_initial_edges).float() - _initial_edges[0]) > 1e-5:
-    warnings.warn(
-        f"Initial edges are not the same, so this may be an unfair comparison of {_initial_edges=}"
-    )
+    warnings.warn(f"Initial edges are not the same, so this may be an unfair comparison of {_initial_edges=}")
 
 added_final_edges = False
 
 thresholds = []
 for name in names:
-    if name.endswith("zero") or (
-        name.endswith("reversed") and not name.endswith("zero_reversed")
-    ):
+    if name.endswith("zero") or (name.endswith("reversed") and not name.endswith("zero_reversed")):
         thresholds.append(get_threshold_zero(name, -2))
     elif "zero_ablation=" in name:
         thresholds.append(float(name.split("=")[1].split("_")[0]))
@@ -254,9 +248,7 @@ if False:
                         edges.append(history.iloc[i]["number_of_edges"])
                         kls.append(history.iloc[i]["acc_loss"])
 
-                    warnings.warn(
-                        "We take min of both, plausibly the (edges, kl) result is actually unattainable"
-                    )
+                    warnings.warn("We take min of both, plausibly the (edges, kl) result is actually unattainable")
 
         labels = fig2.data[0]["regularization_params"]
         kls = torch.tensor(kls)
@@ -395,9 +387,7 @@ subnetwork_prob_fig.data[0].marker["size"] = 10
 subnetwork_prob_fig.data[0].marker["color"] = "black"
 subnetwork_prob_fig.data[0]["name"] = "Subnetwork Probing"
 subnetwork_prob_fig.data[0]["showlegend"] = True
-subnetwork_prob_fig.update_layout(
-    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-)
+subnetwork_prob_fig.update_layout(legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
 subnetwork_prob_fig.show()
 # %%
 from plotly.subplots import make_subplots

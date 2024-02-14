@@ -152,13 +152,9 @@ parser.add_argument(
     default="none",
     choices=["none", "acdc", "sp", "16h", "canonical"],
 )
-parser.add_argument(
-    "--skip-sixteen-heads", action="store_true", help="Skip the 16 heads stuff"
-)
+parser.add_argument("--skip-sixteen-heads", action="store_true", help="Skip the 16 heads stuff")
 parser.add_argument("--skip-sp", action="store_true", help="Skip the SP stuff")
-parser.add_argument(
-    "--testing", action="store_true", help="Use testing data instead of validation data"
-)
+parser.add_argument("--testing", action="store_true", help="Use testing data instead of validation data")
 parser.add_argument("--device", type=str, default="cpu")
 parser.add_argument("--out-dir", type=str, default="DEFAULT")
 parser.add_argument(
@@ -169,9 +165,7 @@ parser.add_argument(
 )
 parser.add_argument("--seed", type=int, default=42, help="Random seed")
 parser.add_argument("--canonical-graph-save-dir", type=str, default="DEFAULT")
-parser.add_argument(
-    "--only-save-canonical", action="store_true", help="Only save the canonical graph"
-)
+parser.add_argument("--only-save-canonical", action="store_true", help="Only save the canonical graph")
 parser.add_argument(
     "--ignore-missing-score",
     action="store_true",
@@ -213,12 +207,7 @@ if args.out_dir == "DEFAULT":
         / "results"
         / f"{'arthur_' if 'arthur' in __file__ else ''}plots_data"
     )
-    CANONICAL_OUT_DIR = (
-        Path(__file__).resolve().parent.parent
-        / "experiments"
-        / "results"
-        / "canonical_circuits"
-    )
+    CANONICAL_OUT_DIR = Path(__file__).resolve().parent.parent / "experiments" / "results" / "canonical_circuits"
 else:
     OUT_DIR = Path(args.out_dir)
     CANONICAL_OUT_DIR = Path(args.canonical_graph_save_dir)
@@ -229,10 +218,7 @@ if args.alg != "none":
     SKIP_SP = False if args.alg == "sp" else True
     SKIP_SIXTEEN_HEADS = False if args.alg == "16h" else True
     SKIP_CANONICAL = False if args.alg == "canonical" else True
-    OUT_FILE = (
-        OUT_DIR
-        / f"{args.alg}-{args.task}-{args.metric}-{args.zero_ablation}-{args.reset_network}.json"
-    )
+    OUT_FILE = OUT_DIR / f"{args.alg}-{args.task}-{args.metric}-{args.zero_ablation}-{args.reset_network}.json"
 
     if OUT_FILE.exists():
         print("File already exists, skipping")
@@ -325,9 +311,7 @@ elif TASK in ["tracr-reverse", "tracr-proportion"]:  # do tracr
         ACDC_PRE_RUN_FILTER.pop("group")
         ACDC_PROJECT_NAME = "remix_school-of-rock/arthur_tracr_fix"
 
-    things = get_all_tracr_things(
-        task=tracr_task, metric_name=METRIC, num_examples=num_examples, device=DEVICE
-    )
+    things = get_all_tracr_things(task=tracr_task, metric_name=METRIC, num_examples=num_examples, device=DEVICE)
 
     # # for propotion,
     # tl_model(toks_int_values[:1])[0, :, 0]
@@ -335,9 +319,7 @@ elif TASK in ["tracr-reverse", "tracr-proportion"]:  # do tracr
 
 elif TASK == "ioi":
     num_examples = 100
-    things = get_all_ioi_things(
-        num_examples=num_examples, device=DEVICE, metric_name=METRIC
-    )
+    things = get_all_ioi_things(num_examples=num_examples, device=DEVICE, metric_name=METRIC)
 
     if METRIC == "kl_div" and not RESET_NETWORK:
         if ZERO_ABLATION:
@@ -363,9 +345,7 @@ elif TASK == "ioi":
 
 elif TASK == "greaterthan":
     num_examples = 100
-    things = get_all_greaterthan_things(
-        num_examples=num_examples, metric_name=METRIC, device=DEVICE
-    )
+    things = get_all_greaterthan_things(num_examples=num_examples, metric_name=METRIC, device=DEVICE)
     get_true_edges = partial(get_greaterthan_true_edges, model=things.tl_model)
 
     SP_PRE_RUN_FILTER["group"] = "tracr-shuffled-redo"
@@ -399,9 +379,7 @@ elif TASK == "greaterthan":
 
 elif TASK == "induction":
     num_examples = 50
-    things = get_all_induction_things(
-        num_examples=num_examples, seq_len=300, device=DEVICE, metric=METRIC
-    )
+    things = get_all_induction_things(num_examples=num_examples, seq_len=300, device=DEVICE, metric=METRIC)
 
     if RESET_NETWORK:
         ACDC_PRE_RUN_FILTER["group"] = "reset-networks-neurips"
@@ -461,10 +439,7 @@ COLORSCHEME_FOR = collections.defaultdict(
 )
 
 if TASK != "induction":
-    d = {
-        (d[0], d[1].hashable_tuple, d[2], d[3].hashable_tuple): False
-        for d in exp.corr.edge_dict()
-    }
+    d = {(d[0], d[1].hashable_tuple, d[2], d[3].hashable_tuple): False for d in exp.corr.edge_dict()}
     d_trues = get_true_edges()
     # if ONLY_SAVE_CANONICAL and TASK == "ioi":
     #     # Remove non-adjacent layer connections
@@ -571,9 +546,7 @@ def get_acdc_runs(
         filtered_runs = list(runs)[:clip]
     else:
         filtered_runs = list(filter(run_filter, tqdm(list(runs)[:clip])))
-    print(
-        f"loading {len(filtered_runs)} runs with filter {pre_run_filter} and {run_filter}"
-    )
+    print(f"loading {len(filtered_runs)} runs with filter {pre_run_filter} and {run_filter}")
 
     threshold_to_run_map: dict[float, AcdcRunCandidate] = {}
 
@@ -639,9 +612,7 @@ def get_acdc_runs(
                 if latest_file is None:
                     raise wandb.CommError("a")
                 # replace=False because these files are never modified. Save them in a unique location, ROOT/run.id
-                with latest_file.download(
-                    ROOT / run.id, replace=False, exist_ok=True
-                ) as f:
+                with latest_file.download(ROOT / run.id, replace=False, exist_ok=True) as f:
                     d = json.load(f)
 
                 data = d["data"][0]
@@ -653,9 +624,7 @@ def get_acdc_runs(
                     current_node = child
 
                     if result < threshold:
-                        corr.edges[child.name][child.index][parent.name][
-                            parent.index
-                        ].present = False
+                        corr.edges[child.name][child.index][parent.name][parent.index].present = False
                         corr.remove_edge(
                             current_node.name,
                             current_node.index,
@@ -663,9 +632,7 @@ def get_acdc_runs(
                             parent.index,
                         )
                     else:
-                        corr.edges[child.name][child.index][parent.name][
-                            parent.index
-                        ].present = True
+                        corr.edges[child.name][child.index][parent.name][parent.index].present = True
                 print("Before copying: n_edges=", corr.count_num_edges())
 
                 corr_all_edges = corr.edge_dict().items()
@@ -695,9 +662,7 @@ def get_acdc_runs(
             except (wandb.CommError, requests.exceptions.HTTPError) as e:
                 print(f"Error {e}, falling back to parsing output.log")
                 try:
-                    with run.file("output.log").download(
-                        root=ROOT / run.id, replace=False, exist_ok=True
-                    ) as f:
+                    with run.file("output.log").download(root=ROOT / run.id, replace=False, exist_ok=True) as f:
                         log_text = f.read()
                     exp.load_from_wandb_run(log_text)
                     add_run_for_processing(
@@ -710,9 +675,7 @@ def get_acdc_runs(
                         )
                     )
                 except Exception:
-                    print(
-                        f"Loading run {run.name} with state={run.state} config={run.config} totally failed."
-                    )
+                    print(f"Loading run {run.name} with state={run.state} config={run.config} totally failed.")
                     continue
 
         else:
@@ -746,19 +709,13 @@ def get_acdc_runs(
 
     # Now add the test_fns to the score_d of the remaining runs
     def all_test_fns(data: torch.Tensor) -> dict[str, float]:
-        return {
-            f"test_{name}": fn(data).item() for name, fn in things.test_metrics.items()
-        }
+        return {f"test_{name}": fn(data).item() for name, fn in things.test_metrics.items()}
 
     all_candidates = list(threshold_to_run_map.values())
     for candidate in all_candidates:
-        test_metrics = exp.call_metric_with_corr(
-            candidate.corr, all_test_fns, things.test_data
-        )
+        test_metrics = exp.call_metric_with_corr(candidate.corr, all_test_fns, things.test_data)
         candidate.score_d.update(test_metrics)
-        print(
-            f"Added run with threshold={candidate.threshold}, n_edges={candidate.corr.count_num_edges()}"
-        )
+        print(f"Added run with threshold={candidate.threshold}, n_edges={candidate.corr.count_num_edges()}")
 
     corrs = [(candidate.corr, candidate.score_d) for candidate in all_candidates]
     if return_ids:
@@ -770,9 +727,7 @@ def get_acdc_runs(
 
 if not SKIP_ACDC:  # this is slow, so run once
     print(ACDC_PROJECT_NAME, ACDC_PRE_RUN_FILTER)
-    acdc_corrs, ids = get_acdc_runs(
-        None if things is None else exp, clip=1 if TESTING else None, return_ids=True
-    )
+    acdc_corrs, ids = get_acdc_runs(None if things is None else exp, clip=1 if TESTING else None, return_ids=True)
     assert len(acdc_corrs) > 1
     print("acdc_corrs", len(acdc_corrs))
 
@@ -911,9 +866,7 @@ def get_sixteen_heads_corrs(
         model=model, nodes_to_mask=[], use_pos_embed=exp.use_pos_embed
     )
     corrs = [(corr, {"score": 0.0, **score_d_list[0]})]
-    for (nodes, hook_name, idx, score), score_d in tqdm(
-        zip(nodes_names_indices, score_d_list[1:])
-    ):
+    for (nodes, hook_name, idx, score), score_d in tqdm(zip(nodes_names_indices, score_d_list[1:])):
         if score == "NaN":
             score = 0.0
         if things is None:
@@ -933,9 +886,7 @@ def get_sixteen_heads_corrs(
     return corrs
 
 
-if (
-    "sixteen_heads_corrs" not in locals() and not SKIP_SIXTEEN_HEADS
-):  # this is slow, so run once
+if "sixteen_heads_corrs" not in locals() and not SKIP_SIXTEEN_HEADS:  # this is slow, so run once
     sixteen_heads_corrs = get_sixteen_heads_corrs()
     assert len(sixteen_heads_corrs) > 1
     print("sixteen_heads_corrs", len(sixteen_heads_corrs))
@@ -992,9 +943,7 @@ def get_points(corrs_and_scores, decreasing=True):
     n_skipped = 0
 
     for idx, (corr, score) in tqdm(
-        enumerate(
-            sorted(corrs_and_scores, key=lambda x: x[1]["score"], reverse=decreasing)
-        )
+        enumerate(sorted(corrs_and_scores, key=lambda x: x[1]["score"], reverse=decreasing))
     ):
         if set(score.keys()) != keys:
             a = init_point.copy()
@@ -1007,12 +956,8 @@ def get_points(corrs_and_scores, decreasing=True):
         score.update({"n_edges": n_edges, "n_nodes": n_nodes})
 
         if TASK != "induction":
-            edge_stats = get_edge_stats(
-                ground_truth=canonical_circuit_subgraph, recovered=corr
-            )
-            node_stats = get_node_stats(
-                ground_truth=canonical_circuit_subgraph, recovered=corr
-            )
+            edge_stats = get_edge_stats(ground_truth=canonical_circuit_subgraph, recovered=corr)
+            node_stats = get_node_stats(ground_truth=canonical_circuit_subgraph, recovered=corr)
 
             assert n_edges == edge_stats["recovered"]
             assert n_nodes == node_stats["recovered"]
@@ -1022,28 +967,16 @@ def get_points(corrs_and_scores, decreasing=True):
             assert edge_stats["recovered"] == n_edges
 
             for prefix, stats in [("edge", edge_stats), ("node", node_stats)]:
-                assert (stats["all"] - stats["ground truth"]) == stats[
-                    "false positive"
-                ] + stats["true negative"]
-                assert (
-                    stats["ground truth"]
-                    == stats["true positive"] + stats["false negative"]
-                )
-                assert (
-                    stats["recovered"]
-                    == stats["true positive"] + stats["false positive"]
-                )
+                assert (stats["all"] - stats["ground truth"]) == stats["false positive"] + stats["true negative"]
+                assert stats["ground truth"] == stats["true positive"] + stats["false negative"]
+                assert stats["recovered"] == stats["true positive"] + stats["false positive"]
 
                 score.update(
                     {
-                        f"{prefix}_tpr": stats["true positive"]
-                        / (stats["true positive"] + stats["false negative"]),
-                        f"{prefix}_fpr": stats["false positive"]
-                        / (stats["false positive"] + stats["true negative"]),
+                        f"{prefix}_tpr": stats["true positive"] / (stats["true positive"] + stats["false negative"]),
+                        f"{prefix}_fpr": stats["false positive"] / (stats["false positive"] + stats["true negative"]),
                         f"{prefix}_precision": (
-                            1
-                            if stats["recovered"] == 0
-                            else stats["true positive"] / (stats["recovered"])
+                            1 if stats["recovered"] == 0 else stats["true positive"] / (stats["recovered"])
                         ),
                     }
                 )
@@ -1109,9 +1042,7 @@ def get_roc_figure(all_points, names):  # TODO make the plots grey / black / yel
                     x = [p[key] for p in points]
                 if "tpr" in key:
                     y = [p[key] for p in points]
-            assert (
-                x is not None and y is not None
-            ), "Could not process with either indices or keys"
+            assert x is not None and y is not None, "Could not process with either indices or keys"
 
         roc_figure.add_trace(
             go.Scatter(
@@ -1149,10 +1080,7 @@ if OUT_FILE is not None:
             ablation: {
                 args.task: {
                     args.metric: {
-                        ALG: {
-                            k: [p[k] for p in points[ALG]]
-                            for k in points[ALG][0].keys()
-                        },
+                        ALG: {k: [p[k] for p in points[ALG]] for k in points[ALG][0].keys()},
                     },
                 },
             },

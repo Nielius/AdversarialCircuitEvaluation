@@ -114,15 +114,11 @@ def main():
         f.write("docstring: " + " ".join(sorted(docstring_files)) + "\n\n")
         f.write("greaterthan: " + " ".join(sorted(greaterthan_files)) + "\n\n")
         f.write("tracr-reverse: " + " ".join(sorted(tracr_reverse_files)) + "\n\n")
-        f.write(
-            "tracr-proportion: " + " ".join(sorted(tracr_proportion_files)) + "\n\n"
-        )
+        f.write("tracr-proportion: " + " ".join(sorted(tracr_proportion_files)) + "\n\n")
         f.write("induction: " + " ".join(sorted(induction_files)) + "\n\n")
 
     print(actual_files - possible_files)
-    assert (
-        len(actual_files - possible_files) == 0
-    ), "There are files that shouldn't be there"
+    assert len(actual_files - possible_files) == 0, "There are files that shouldn't be there"
 
     missing_files = possible_files - actual_files
     print(f"Missing {len(missing_files)} files:")

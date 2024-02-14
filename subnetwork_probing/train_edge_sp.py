@@ -88,10 +88,7 @@ def train_edge_sp(
             reset_logits = masked_model.model(all_task_things.test_data)
             print(
                 "Reset test metric: ",
-                {
-                    k: v(reset_logits).item()
-                    for k, v in all_task_things.test_metrics.items()
-                },
+                {k: v(reset_logits).item() for k, v in all_task_things.test_metrics.items()},
             )
 
     # one parameter per thing that is masked
@@ -105,12 +102,8 @@ def train_edge_sp(
     if args.zero_ablation:
         valid_context_args = test_context_args = dict(ablation="zero")
     else:
-        valid_context_args = dict(
-            ablation="resample", ablation_data=all_task_things.validation_patch_data
-        )
-        test_context_args = dict(
-            ablation="resample", ablation_data=all_task_things.test_patch_data
-        )
+        valid_context_args = dict(ablation="resample", ablation_data=all_task_things.validation_patch_data)
+        test_context_args = dict(ablation="resample", ablation_data=all_task_things.test_patch_data)
 
     # Get canonical subgraph so we can print TPR, FPR
     canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
@@ -125,13 +118,9 @@ def train_edge_sp(
     for epoch in tqdm(range(epochs)):  # tqdm.notebook.tqdm(range(epochs)):
         masked_model.train()
         trainer.zero_grad()
-        with masked_model.with_fwd_hooks_and_new_cache(
-            **valid_context_args
-        ) as hooked_model:
+        with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes before forward")
-            metric_loss = all_task_things.validation_metric(
-                hooked_model(all_task_things.validation_data)
-            )
+            metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.validation_data))
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes after forward")
         regularizer_term = masked_model.regularization_loss()
         loss = metric_loss + regularizer_term * lambda_reg
@@ -144,20 +133,14 @@ def train_edge_sp(
             for i in range(3):  # sample multiple times to get average edge_tpr etc.
                 corr = edge_level_corr(masked_model)
                 try:
-                    stats = print_stats(
-                        corr, canonical_circuit_subgraph, do_print=False
-                    )
+                    stats = print_stats(corr, canonical_circuit_subgraph, do_print=False)
                     statss.append(stats)
                 except:
                     pass
             stats = {k: sum(s[k] for s in statss) / len(statss) for k in statss[0]}
             with torch.no_grad():
-                with masked_model.with_fwd_hooks_and_new_cache(
-                    **test_context_args
-                ) as hooked_model:
-                    test_metric_loss = all_task_things.validation_metric(
-                        hooked_model(all_task_things.test_data)
-                    )
+                with masked_model.with_fwd_hooks_and_new_cache(**test_context_args) as hooked_model:
+                    test_metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.test_data))
             test_loss = test_metric_loss + regularizer_term * lambda_reg
 
             wandb.log(
@@ -200,17 +183,11 @@ def train_edge_sp(
         if args.zero_ablation:
             masked_model.do_zero_caching()
         else:
-            masked_model.do_random_resample_caching(
-                all_task_things.validation_patch_data
-            )
+            masked_model.do_random_resample_caching(all_task_things.validation_patch_data)
 
         for _ in range(args.n_loss_average_runs):
-            with masked_model.with_fwd_hooks_and_new_cache(
-                **valid_context_args
-            ) as hooked_model:
-                metric_loss += all_task_things.validation_metric(
-                    hooked_model(all_task_things.validation_data)
-                ).item()
+            with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
+                metric_loss += all_task_things.validation_metric(hooked_model(all_task_things.validation_data)).item()
         print(f"Final train/validation metric: {metric_loss:.4f}")
 
         if args.zero_ablation:
@@ -224,12 +201,8 @@ def train_edge_sp(
             test_specific_metric_term = 0.0
             # Test loss
             for _ in range(args.n_loss_average_runs):
-                with masked_model.with_fwd_hooks_and_new_cache(
-                    **valid_context_args
-                ) as hooked_model:
-                    test_specific_metric_term += fn(
-                        hooked_model(all_task_things.test_data)
-                    ).item()
+                with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
+                    test_specific_metric_term += fn(hooked_model(all_task_things.test_data)).item()
             test_specific_metrics[f"test_{k}"] = test_specific_metric_term
 
         print(f"Final test metric: {test_specific_metrics}")
@@ -306,9 +279,7 @@ if __name__ == "__main__":
             device=torch.device(args.device),
             metric_name=args.loss_type,
         )
-        get_true_edges = lambda: get_ioi_true_edges(
-            all_task_things.tl_model
-        )  # noqa: E731
+        get_true_edges = lambda: get_ioi_true_edges(all_task_things.tl_model)  # noqa: E731
     elif args.task == "induction":
         all_task_things = get_all_induction_things(
             args.num_examples,
@@ -348,9 +319,7 @@ if __name__ == "__main__":
             metric_name=args.loss_type,
             device=args.device,
         )
-        get_true_edges = lambda: get_greaterthan_true_edges(
-            all_task_things.tl_model
-        )  # noqa: E731
+        get_true_edges = lambda: get_greaterthan_true_edges(all_task_things.tl_model)  # noqa: E731
     else:
         raise ValueError(f"Unknown task {args.task}")
 

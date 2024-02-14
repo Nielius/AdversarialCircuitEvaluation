@@ -15,12 +15,8 @@ import pandas as pd
 parser = argparse.ArgumentParser(
     usage="Generate AUC tables from CSV files. Pass the data.csv file as an argument fname, e.g python notebooks/auc_tables.py --fname=experiments/results/plots/data.csv"
 )
-parser.add_argument(
-    "--in-fname", type=str, default="experiments/results/plots/data.csv"
-)
-parser.add_argument(
-    "--out-fname", type=str, default="experiments/results/auc_tables.tex"
-)
+parser.add_argument("--in-fname", type=str, default="experiments/results/plots/data.csv")
+parser.add_argument("--out-fname", type=str, default="experiments/results/auc_tables.tex")
 
 if ipython is None:
     args = parser.parse_args()
@@ -34,12 +30,8 @@ with io.StringIO() as buf:
     for key in ["auc"]:  # ["test_kl_div", "test_loss", "auc"]:
         for weights_type in ["trained"]:  # ["reset", "trained"]
             df = data[(data["weights_type"] == weights_type)]
-            df = df.replace(
-                {"metric": df.metric.map(lambda x: "other" if x != "kl_div" else x)}
-            )
-            df = df.drop_duplicates(
-                subset=["task", "method", "metric", "ablation_type", "plot_type"]
-            )
+            df = df.replace({"metric": df.metric.map(lambda x: "other" if x != "kl_div" else x)})
+            df = df.drop_duplicates(subset=["task", "method", "metric", "ablation_type", "plot_type"])
 
             def process_metric_pretty(row):
                 if row["metric"] == "kl_div":
@@ -68,11 +60,7 @@ with io.StringIO() as buf:
                                 out,
                                 pd.Series(
                                     data=[
-                                        (
-                                            f"\\textbf{{{x:.3f}}}"
-                                            if x == the_max
-                                            else f"{x:.3f}"
-                                        )
+                                        (f"\\textbf{{{x:.3f}}}" if x == the_max else f"{x:.3f}")
                                         for x in row.loc[plot_type]
                                     ],
                                     index=row.loc[[plot_type]].index,

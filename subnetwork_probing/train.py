@@ -56,34 +56,20 @@ def iterative_correspondence_from_mask(
             )
         )
 
-        if (
-            node.name.endswith("_q")
-            or node.name.endswith("_k")
-            or node.name.endswith("_v")
-        ):
-            child_name = (
-                node.name.replace("_q", "_result")
-                .replace("_k", "_result")
-                .replace("_v", "_result")
-            )
+        if node.name.endswith("_q") or node.name.endswith("_k") or node.name.endswith("_v"):
+            child_name = node.name.replace("_q", "_result").replace("_k", "_result").replace("_v", "_result")
             head_parents[(child_name, node.index)] += 1
 
             if head_parents[(child_name, node.index)] == 3:
-                additional_nodes_to_mask.append(
-                    TLACDCInterpNode(child_name, node.index, EdgeType.PLACEHOLDER)
-                )
+                additional_nodes_to_mask.append(TLACDCInterpNode(child_name, node.index, EdgeType.PLACEHOLDER))
 
             # Forgot to add these in earlier versions of Subnetwork Probing, and so the edge counts were inflated
-            additional_nodes_to_mask.append(
-                TLACDCInterpNode(child_name + "_input", node.index, EdgeType.ADDITION)
-            )
+            additional_nodes_to_mask.append(TLACDCInterpNode(child_name + "_input", node.index, EdgeType.ADDITION))
 
         if node.name.endswith(("mlp_in", "resid_mid")):
             additional_nodes_to_mask.append(
                 TLACDCInterpNode(
-                    node.name.replace("resid_mid", "mlp_out").replace(
-                        "mlp_in", "mlp_out"
-                    ),
+                    node.name.replace("resid_mid", "mlp_out").replace("mlp_in", "mlp_out"),
                     node.index,
                     EdgeType.DIRECT_COMPUTATION,
                 )
@@ -144,20 +130,14 @@ class MaskedTransformer(torch.nn.Module):
         for layer_index, layer in enumerate(model.blocks):
             # MLP: turn on/off
             mask_name = f"blocks.{layer_index}.hook_mlp_out"
-            self.mask_logits.append(
-                torch.nn.Parameter(torch.zeros((1,)) + mask_init_constant)
-            )
+            self.mask_logits.append(torch.nn.Parameter(torch.zeros((1,)) + mask_init_constant))
             self.mask_logits_names.append(mask_name)
             self._mask_logits_dict[mask_name] = self.mask_logits[-1]
 
             # QKV: turn each head on/off
             for q_k_v in ["q", "k", "v"]:
                 mask_name = f"blocks.{layer_index}.attn.hook_{q_k_v}"
-                self.mask_logits.append(
-                    torch.nn.Parameter(
-                        torch.zeros((model.cfg.n_heads, 1)) + mask_init_constant
-                    )
-                )
+                self.mask_logits.append(torch.nn.Parameter(torch.zeros((model.cfg.n_heads, 1)) + mask_init_constant))
                 self.mask_logits_names.append(mask_name)
                 self._mask_logits_dict[mask_name] = self.mask_logits[-1]
 
@@ -165,19 +145,14 @@ class MaskedTransformer(torch.nn.Module):
         """Samples a binary-ish mask from the mask_scores for the particular `mask_name` activation"""
         mask_scores = self._mask_logits_dict[mask_name]
         uniform_sample = torch.zeros_like(mask_scores).uniform_().clamp_(0.0001, 0.9999)
-        s = torch.sigmoid(
-            (uniform_sample.log() - (1 - uniform_sample).log() + mask_scores)
-            / self.beta
-        )
+        s = torch.sigmoid((uniform_sample.log() - (1 - uniform_sample).log() + mask_scores) / self.beta)
         s_bar = s * (self.zeta - self.gamma) + self.gamma
         mask = s_bar.clamp(min=0.0, max=1.0)
         return mask
 
     def regularization_loss(self) -> torch.Tensor:
         center = self.beta * math.log(-self.gamma / self.zeta)
-        per_parameter_loss = [
-            torch.sigmoid(scores - center).mean() for scores in self.mask_logits
-        ]
+        per_parameter_loss = [torch.sigmoid(scores - center).mean() for scores in self.mask_logits]
         return torch.mean(torch.stack(per_parameter_loss))
 
     def mask_logits_names_filter(self, name):
@@ -200,10 +175,7 @@ class MaskedTransformer(torch.nn.Module):
         `do_random_resample_caching`; this is ultimately fine due to broadcasting.
         """
         self.cache = ActivationCache(
-            {
-                name: torch.zeros_like(scores)
-                for name, scores in self._mask_logits_dict.items()
-            },
+            {name: torch.zeros_like(scores) for name, scores in self._mask_logits_dict.items()},
             self.model,
         )
 
@@ -237,9 +209,7 @@ def visualize_mask(
             for q_k_v in ["q", "k", "v"]:
                 total_nodes += 1
                 node_name = f"blocks.{layer_index}.attn.hook_{q_k_v}"
-                mask_sample = (
-                    masked_model.sample_mask(node_name)[head_index].cpu().item()
-                )
+                mask_sample = masked_model.sample_mask(node_name)[head_index].cpu().item()
 
                 node_name_with_index = f"{node_name}[{head_index}]"
                 node_name_list.append(node_name_with_index)
@@ -266,9 +236,7 @@ def visualize_mask(
             (f"blocks.{layer_index}.hook_mlp_out", EdgeType.PLACEHOLDER),
             (f"blocks.{layer_index}.hook_resid_mid", EdgeType.ADDITION),
         ]:
-            node = TLACDCInterpNode(
-                node_name, TorchIndex([None]), incoming_edge_type=edge_type
-            )
+            node = TLACDCInterpNode(node_name, TorchIndex([None]), incoming_edge_type=edge_type)
             total_nodes += 1
 
             if mask_sample < 0.5:
@@ -317,10 +285,7 @@ def train_sp(
             reset_logits = masked_model.model(all_task_things.test_data)
             print(
                 "Reset test metric: ",
-                {
-                    k: v(reset_logits).item()
-                    for k, v in all_task_things.test_metrics.items()
-                },
+                {k: v(reset_logits).item() for k, v in all_task_things.test_metrics.items()},
             )
 
     # one parameter per thing that is masked
@@ -340,9 +305,7 @@ def train_sp(
         trainer.zero_grad()
 
         with masked_model.with_fwd_hooks() as hooked_model:
-            specific_metric_term = all_task_things.validation_metric(
-                hooked_model(all_task_things.validation_data)
-            )
+            specific_metric_term = all_task_things.validation_metric(hooked_model(all_task_things.validation_data))
         regularizer_term = masked_model.regularization_loss()
         loss = specific_metric_term + regularizer_term * lambda_reg
         loss.backward()
@@ -367,9 +330,7 @@ def train_sp(
         if args.zero_ablation:
             masked_model.do_zero_caching()
         else:
-            masked_model.do_random_resample_caching(
-                all_task_things.validation_patch_data
-            )
+            masked_model.do_random_resample_caching(all_task_things.validation_patch_data)
 
         for _ in range(args.n_loss_average_runs):
             with masked_model.with_fwd_hooks() as hooked_model:
@@ -390,9 +351,7 @@ def train_sp(
             # Test loss
             for _ in range(args.n_loss_average_runs):
                 with masked_model.with_fwd_hooks() as hooked_model:
-                    test_specific_metric_term += fn(
-                        hooked_model(all_task_things.test_data)
-                    ).item()
+                    test_specific_metric_term += fn(hooked_model(all_task_things.test_data)).item()
             test_specific_metrics[f"test_{k}"] = test_specific_metric_term
 
         print(f"Final test metric: {test_specific_metrics}")
@@ -518,9 +477,7 @@ if __name__ == "__main__":
         all_task_things=all_task_things,
     )
 
-    corr, _ = iterative_correspondence_from_mask(
-        masked_model.model, to_log_dict["nodes_to_mask"]
-    )
+    corr, _ = iterative_correspondence_from_mask(masked_model.model, to_log_dict["nodes_to_mask"])
     percentage_binary = proportion_of_binary_scores(masked_model)
 
     # Update dict with some different things
@@ -530,9 +487,7 @@ if __name__ == "__main__":
 
     wandb.log(to_log_dict)
     if args.print_stats:
-        canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
-            masked_model.model, use_pos_embed=False
-        )
+        canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(masked_model.model, use_pos_embed=False)
         d_trues = set(get_true_edges())
 
         for (
@@ -550,21 +505,13 @@ if __name__ == "__main__":
             edge.present = key in d_trues
 
         stats = get_node_stats(ground_truth=canonical_circuit_subgraph, recovered=corr)
-        tpr = stats["true positive"] / (
-            stats["true positive"] + stats["false negative"]
-        )
-        fpr = stats["false positive"] / (
-            stats["false positive"] + stats["true negative"]
-        )
+        tpr = stats["true positive"] / (stats["true positive"] + stats["false negative"])
+        fpr = stats["false positive"] / (stats["false positive"] + stats["true negative"])
         print(f"Node TPR: {tpr:.3f}. Node FPR: {fpr:.3f}")
 
         stats = get_edge_stats(ground_truth=canonical_circuit_subgraph, recovered=corr)
-        tpr = stats["true positive"] / (
-            stats["true positive"] + stats["false negative"]
-        )
-        fpr = stats["false positive"] / (
-            stats["false positive"] + stats["true negative"]
-        )
+        tpr = stats["true positive"] / (stats["true positive"] + stats["false negative"])
+        fpr = stats["false positive"] / (stats["false positive"] + stats["true negative"])
         print(f"Edge TPR: {tpr:.3f}. Edge FPR: {fpr:.3f}")
 
     wandb.finish()

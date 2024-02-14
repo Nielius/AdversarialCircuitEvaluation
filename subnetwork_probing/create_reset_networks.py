@@ -35,10 +35,7 @@ def scramble_sd(
 
     sd = {}
     for k, v in old_sd.items():
-        if scramble_heads and (
-            "attn" in k
-            and not (k.endswith("_O") or k.endswith("mask") or k.endswith("IGNORE"))
-        ):
+        if scramble_heads and ("attn" in k and not (k.endswith("_O") or k.endswith("mask") or k.endswith("IGNORE"))):
             assert v.shape[0] == n_heads
             to_sd = v[torch.randperm(n_heads), ...].contiguous()
             if scramble_head_outputs:
@@ -90,9 +87,7 @@ del things
 gc.collect()
 
 # %% Tracr-reverse
-things = get_all_tracr_things(
-    task="reverse", metric_name="kl_div", num_examples=6, device=DEVICE
-)
+things = get_all_tracr_things(task="reverse", metric_name="kl_div", num_examples=6, device=DEVICE)
 scramble_sd(
     1207775456,
     things,
@@ -101,17 +96,13 @@ scramble_sd(
 )
 gc.collect()
 
-scramble_sd(
-    1666927681, things, "tracr_reverse_reset_heads_neurons", scramble_head_outputs=False
-)
+scramble_sd(1666927681, things, "tracr_reverse_reset_heads_neurons", scramble_head_outputs=False)
 del things
 gc.collect()
 
 # %% Tracr-proportion
 
-things = get_all_tracr_things(
-    task="proportion", metric_name="kl_div", num_examples=50, device=DEVICE
-)
+things = get_all_tracr_things(task="proportion", metric_name="kl_div", num_examples=50, device=DEVICE)
 scramble_sd(
     2126292961,
     things,
@@ -131,9 +122,7 @@ gc.collect()
 
 # %% Induction
 
-things = get_all_induction_things(
-    num_examples=50, seq_len=300, device=DEVICE, metric="kl_div"
-)
+things = get_all_induction_things(num_examples=50, seq_len=300, device=DEVICE, metric="kl_div")
 scramble_sd(2016630123, things, "induction_reset_heads_neurons")
 del things
 gc.collect()
@@ -154,9 +143,7 @@ gc.collect()
 
 # %% GreaterThan
 
-things = get_all_greaterthan_things(
-    num_examples=100, device=DEVICE, metric_name="kl_div"
-)
+things = get_all_greaterthan_things(num_examples=100, device=DEVICE, metric_name="kl_div")
 scramble_sd(1028419464, things, "greaterthan_reset_heads_neurons")
 del things
 gc.collect()

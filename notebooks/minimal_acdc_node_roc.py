@@ -16,9 +16,7 @@ import plotly.graph_objects as go
 
 # Set your root directory here
 ROOT_DIR = Path("/home/arthur/Documents/Automatic-Circuit-Discovery")
-assert (
-    ROOT_DIR.exists()
-), f"I don't think your ROOT_DIR is correct (ROOT_DIR = {ROOT_DIR})"
+assert ROOT_DIR.exists(), f"I don't think your ROOT_DIR is correct (ROOT_DIR = {ROOT_DIR})"
 
 # %%
 

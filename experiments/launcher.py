@@ -44,9 +44,7 @@ def launch(
     print(f"Launching {len(commands)} jobs")
     for i, command in enumerate(commands):
         if i not in ids_for_worker:
-            print(
-                f"Skipping {name} because it's not my turn, {i} not in {ids_for_worker}"
-            )
+            print(f"Skipping {name} because it's not my turn, {i} not in {ids_for_worker}")
             continue
 
         command_str = shlex.join(command)

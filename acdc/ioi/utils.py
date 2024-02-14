@@ -60,13 +60,9 @@ def get_all_ioi_things(num_examples, device, metric_name, kl_return_one_element=
     default_data = ioi_dataset.toks.long()[: num_examples * 2, : seq_len - 1].to(device)
     patch_data = abc_dataset.toks.long()[: num_examples * 2, : seq_len - 1].to(device)
     labels = ioi_dataset.toks.long()[: num_examples * 2, seq_len - 1]
-    wrong_labels = torch.as_tensor(
-        ioi_dataset.s_tokenIDs[: num_examples * 2], dtype=torch.long, device=device
-    )
+    wrong_labels = torch.as_tensor(ioi_dataset.s_tokenIDs[: num_examples * 2], dtype=torch.long, device=device)
 
-    assert torch.equal(
-        labels, torch.as_tensor(ioi_dataset.io_tokenIDs, dtype=torch.long)
-    )
+    assert torch.equal(labels, torch.as_tensor(ioi_dataset.io_tokenIDs, dtype=torch.long))
     labels = labels.to(device)
 
     validation_data = default_data[:num_examples, :]
@@ -243,9 +239,7 @@ def get_ioi_true_edges(model):
     for layer_idx, head_idx in all_nodes:
         for letter in "qkv":
             # remove input -> head connection
-            edge_to = corr.edges[f"blocks.{layer_idx}.hook_{letter}_input"][
-                TorchIndex([None, None, head_idx])
-            ]
+            edge_to = corr.edges[f"blocks.{layer_idx}.hook_{letter}_input"][TorchIndex([None, None, head_idx])]
             edge_to["blocks.0.hook_resid_pre"][TorchIndex([None])].present = False
 
             # Remove all other_head->this_head connections in the circuit
@@ -256,9 +250,9 @@ def get_ioi_true_edges(model):
                     ].present = False
 
             # Remove connection from this head to the output
-            corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][
-                f"blocks.{layer_idx}.attn.hook_result"
-            ][TorchIndex([None, None, head_idx])].present = False
+            corr.edges["blocks.11.hook_resid_post"][TorchIndex([None])][f"blocks.{layer_idx}.attn.hook_result"][
+                TorchIndex([None, None, head_idx])
+            ].present = False
 
     special_connections: set[Conn] = {
         Conn("INPUT", "previous token", ("q", "k", "v")),
@@ -323,9 +317,7 @@ def get_ioi_true_edges(model):
         for layer_from, layer_name_from, which_idx_from in idx_from:
             for layer_to, layer_name_to, which_idx_to in idx_to:
                 if layer_to > layer_from:
-                    corr.edges[layer_name_to][which_idx_to][layer_name_from][
-                        which_idx_from
-                    ].present = True
+                    corr.edges[layer_name_to][which_idx_to][layer_name_from][which_idx_from].present = True
 
     ret = OrderedDict(
         {

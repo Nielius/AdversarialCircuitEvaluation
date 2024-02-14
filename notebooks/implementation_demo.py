@@ -120,12 +120,8 @@ null_index = TorchIndex([None])
 
 # We're using ACDC code to pretend these edges have an effect size (this notebook is just for vizualization purposes)
 
-correspondence.edges[end_state_name][null_index][head_name][
-    head_index
-].effect_size = 1.0
-correspondence.edges[end_state_name][null_index][embeds_name][
-    null_index
-].effect_size = 1.0
+correspondence.edges[end_state_name][null_index][head_name][head_index].effect_size = 1.0
+correspondence.edges[end_state_name][null_index][embeds_name][null_index].effect_size = 1.0
 
 # %%
 
@@ -154,9 +150,7 @@ show_corr(correspondence)
 # %%
 
 for letter in "qkv":
-    e = correspondence.edges[head_name][head_index][f"blocks.0.attn.hook_{letter}"][
-        head_index
-    ]
+    e = correspondence.edges[head_name][head_index][f"blocks.0.attn.hook_{letter}"][head_index]
     e.effect_size = 1.0
 
 # %%
@@ -178,9 +172,7 @@ show_corr(correspondence)
 # %%
 
 for letter in "qkv":
-    e = correspondence.edges[f"blocks.0.attn.hook_{letter}"][head_index][
-        f"blocks.0.hook_{letter}_input"
-    ][head_index]
+    e = correspondence.edges[f"blocks.0.attn.hook_{letter}"][head_index][f"blocks.0.hook_{letter}_input"][head_index]
     e.effect_size = 1.0
 
 show_corr(correspondence)

@@ -781,47 +781,31 @@ class BatchedPrompts:
             self.corrupt_prompt = [p.corrupt_prompt for p in prompts]
         else:
             self.corrupt_prompt = {
-                key: [p.corrupt_prompt[key] for p in prompts]
-                for key in prompts[0].corrupt_prompt.keys()
+                key: [p.corrupt_prompt[key] for p in prompts] for key in prompts[0].corrupt_prompt.keys()
             }
         self.correct_answers = [p.correct_answers for p in prompts]
         if self.correct_answers[0][0][0] != " ":
-            print(
-                "THE CORRECT ANSWER DOES NOT START WITH A SPACE -- ARE YOU SURE ABOUT THAT?"
-            )
+            print("THE CORRECT ANSWER DOES NOT START WITH A SPACE -- ARE YOU SURE ABOUT THAT?")
         self.wrong_answers = [p.wrong_answers for p in prompts]
 
-        self.clean_tokens = torch.stack(
-            [model.to_tokens(batch, prepend_bos=True)[0] for batch in self.clean_prompt]
-        )
+        self.clean_tokens = torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in self.clean_prompt])
         if isinstance(prompts[0].corrupt_prompt, str):
             self.corrupt_tokens = torch.stack(
-                [
-                    model.to_tokens(batch, prepend_bos=True)[0]
-                    for batch in self.corrupt_prompt
-                ]
+                [model.to_tokens(batch, prepend_bos=True)[0] for batch in self.corrupt_prompt]
             )
         else:
             self.corrupt_tokens = {
-                key: torch.stack(
-                    [model.to_tokens(batch, prepend_bos=True)[0] for batch in prompts]
-                )
+                key: torch.stack([model.to_tokens(batch, prepend_bos=True)[0] for batch in prompts])
                 for key, prompts in self.corrupt_prompt.items()
             }
 
         # [batch, n_correct_tokens]
         self.correct_tokens = torch.stack(
-            [
-                model.to_tokens(batch, prepend_bos=False)[:, 0]
-                for batch in self.correct_answers
-            ]
+            [model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.correct_answers]
         )
         # [batch, n_wrong_tokens]
         self.wrong_tokens = torch.stack(
-            [
-                model.to_tokens(batch, prepend_bos=False)[:, 0]
-                for batch in self.wrong_answers
-            ]
+            [model.to_tokens(batch, prepend_bos=False)[:, 0] for batch in self.wrong_answers]
         )
 
     def get_prompt(self, index):
@@ -836,24 +820,16 @@ class BatchedPrompts:
             self.wrong_answers[index],
         )
 
-    def correct_prob(
-        self, logits: TT["batch", "pos", "d_vocab"], pos: int = -1
-    ) -> TT["batch"]:
+    def correct_prob(self, logits: TT["batch", "pos", "d_vocab"], pos: int = -1) -> TT["batch"]:
         pos_logits = logits[:, pos, :]
         pos_log_probs = torch.log_softmax(pos_logits, dim=1)
-        correct_log_probs = torch.gather(
-            pos_log_probs, index=self.correct_tokens, dim=1
-        )
+        correct_log_probs = torch.gather(pos_log_probs, index=self.correct_tokens, dim=1)
         correct_probs = correct_log_probs.exp()
         return correct_probs.mean(dim=1)
 
-    def correct_rank(
-        self, logits: TT["batch", "pos", "d_vocab"], pos: int = -1
-    ) -> TT["batch"]:
+    def correct_rank(self, logits: TT["batch", "pos", "d_vocab"], pos: int = -1) -> TT["batch"]:
         pos_logits = logits[:, pos, :]
-        best_correct_logits, _ = torch.gather(
-            pos_logits, index=self.correct_tokens, dim=1
-        ).max(dim=1, keepdim=True)
+        best_correct_logits, _ = torch.gather(pos_logits, index=self.correct_tokens, dim=1).max(dim=1, keepdim=True)
         return (pos_logits > best_correct_logits).long().sum(dim=1)
 
 
@@ -881,9 +857,7 @@ def docstring_prompt_templ(
 {args_line}'''
     param_prefix = f"{ind4}:param" if style == "rest" else f"{ind4}   "
     doc_args_desc = [" ".join(arg_desc_words) for arg_desc_words in doc_args_desc_words]
-    doc_lines = [
-        f"{param_prefix} {arg}: {desc}" for arg, desc in zip(doc_args, doc_args_desc)
-    ]
+    doc_lines = [f"{param_prefix} {arg}: {desc}" for arg, desc in zip(doc_args, doc_args_desc)]
     doc_lines_str = "\n".join(doc_lines)
     return f"""
 {def_and_desc}
@@ -910,9 +884,7 @@ def docstring_prompt_gen(
     met_name, *def_args = random.sample(variable_names, 1 + n_args)
     clean_doc_args = def_args[:pred_nth_arg]
     met_desc_words = random.sample(common_single_token_nouns, met_desc_len)
-    doc_args_desc_words = [
-        random.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args
-    ]
+    doc_args_desc_words = [random.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args]
 
     clean_prompt = docstring_prompt_templ(
         style,
@@ -938,9 +910,7 @@ def docstring_prompt_gen(
         doc_args_desc_words=doc_args_desc_words,
     )
 
-    shift1_doc_args = (
-        def_args[pred_nth_arg - 1 : pred_nth_arg] + def_args[: pred_nth_arg - 1]
-    )
+    shift1_doc_args = def_args[pred_nth_arg - 1 : pred_nth_arg] + def_args[: pred_nth_arg - 1]
     shift1_prompt = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -975,9 +945,7 @@ def docstring_prompt_gen(
     random_def_arg = random.choice(variable_names)
     while random_def_arg in def_args:
         random_def_arg = random.choice(variable_names)
-    swap_random_def_args = (
-        def_args[:pred_nth_arg] + [random_def_arg] + def_args[pred_nth_arg + 1 :]
-    )
+    swap_random_def_args = def_args[:pred_nth_arg] + [random_def_arg] + def_args[pred_nth_arg + 1 :]
     swap_random_prompt = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -1066,9 +1034,7 @@ def docstring_induction_prompt_generator(
     clean_def_args = def_prefix_args + matching_args + def_suffix_args
     clean_doc_args = doc_prefix_args + matching_args[:-1]
     met_desc_words = random.sample(common_single_token_nouns, met_desc_len)
-    doc_args_desc_words = [
-        random.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args
-    ]
+    doc_args_desc_words = [random.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args]
 
     clean_prompt = docstring_prompt_templ(
         style,
@@ -1096,9 +1062,7 @@ def docstring_induction_prompt_generator(
         default=default,
     )
 
-    random_def_def_args = (
-        def_prefix_args + not_matching_args + matching_args[-1:] + def_suffix_args
-    )
+    random_def_def_args = def_prefix_args + not_matching_args + matching_args[-1:] + def_suffix_args
     random_def_prompt = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -1109,9 +1073,7 @@ def docstring_induction_prompt_generator(
         default=default,
     )
 
-    random_answer_def_args = (
-        def_prefix_args + matching_args[:-1] + [random_answer] + def_suffix_args
-    )
+    random_answer_def_args = def_prefix_args + matching_args[:-1] + [random_answer] + def_suffix_args
     random_answer_prompt = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -1142,9 +1104,7 @@ def docstring_induction_prompt_generator(
         default=default,
     )
 
-    random_random_def_args = (
-        def_prefix_args + random_random_mid_def_args + def_suffix_args
-    )
+    random_random_def_args = def_prefix_args + random_random_mid_def_args + def_suffix_args
     random_random_doc_args = doc_prefix_args + random_random_mid_doc_args
     random_random_prompt = docstring_prompt_templ(
         style,
@@ -1156,9 +1116,7 @@ def docstring_induction_prompt_generator(
         default=default,
     )
 
-    vary_length_doc_desc = [
-        [doc_args_desc_words[i][0]] for i in range(len(clean_doc_args))
-    ]
+    vary_length_doc_desc = [[doc_args_desc_words[i][0]] for i in range(len(clean_doc_args))]
     for i in range(len(clean_doc_args)):
         for j in range(1, len(doc_args_desc_words[i])):
             k = random.randint(0, len(clean_doc_args) - 1)

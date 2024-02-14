@@ -72,9 +72,7 @@ def get_all_docstring_things(
     )
 
     raw_prompts = [
-        prompts.docstring_induction_prompt_generator(
-            "rest", **docstring_ind_prompt_kwargs, seed=i
-        )
+        prompts.docstring_induction_prompt_generator("rest", **docstring_ind_prompt_kwargs, seed=i)
         for i in range(num_examples * 2)
     ]
     batched_prompts = prompts.BatchedPrompts(prompts=raw_prompts, model=tl_model)
@@ -98,9 +96,7 @@ def get_all_docstring_things(
     test_patch_data = toks_int_values_other[num_examples:]
 
     with torch.no_grad():
-        base_validation_logprobs = F.log_softmax(
-            tl_model(validation_data)[:, -1], dim=-1
-        )
+        base_validation_logprobs = F.log_softmax(tl_model(validation_data)[:, -1], dim=-1)
         base_test_logprobs = F.log_softmax(tl_model(test_data)[:, -1], dim=-1)
         assert len(base_validation_logprobs.shape) == 2, base_validation_logprobs.shape
 
@@ -114,17 +110,13 @@ def get_all_docstring_things(
         """With neg sign so we minimize this"""
 
         correct_logits = logits[torch.arange(len(logits)), -1, correct_labels]
-        incorrect_logits = logits[
-            torch.arange(len(logits)).unsqueeze(-1), -1, wrong_labels
-        ]
+        incorrect_logits = logits[torch.arange(len(logits)).unsqueeze(-1), -1, wrong_labels]
 
         if log_correct_incorrect_wandb:
             wandb.log(
                 {
                     "correct_logits": correct_logits.mean().item(),
-                    "incorrect_logits": incorrect_logits.max(dim=-1)
-                    .values.mean()
-                    .item(),
+                    "incorrect_logits": incorrect_logits.max(dim=-1).values.mean().item(),
                 }
             )
 
@@ -142,9 +134,7 @@ def get_all_docstring_things(
     ):
         """Logit diff greater zero fraction (with neg sign)"""
         pos_logits = logits[:, -1, :]
-        max_correct, _ = torch.gather(
-            pos_logits, index=correct_labels[..., None], dim=1
-        ).max(dim=1)
+        max_correct, _ = torch.gather(pos_logits, index=correct_labels[..., None], dim=1).max(dim=1)
         max_wrong, _ = torch.gather(pos_logits, index=wrong_labels, dim=1).max(dim=1)
 
         answer = -(max_correct - max_wrong > 0).float()
@@ -252,78 +242,36 @@ def get_docstring_subgraph_true_edges():
     COL = TorchIndex([None])
     H = lambda i: TorchIndex([None, None, i])
 
-    edges_to_keep.append(
-        ("blocks.1.hook_v_input", H(4), "blocks.0.attn.hook_result", H(5))
-    )
+    edges_to_keep.append(("blocks.1.hook_v_input", H(4), "blocks.0.attn.hook_result", H(5)))
     edges_to_keep.append(("blocks.0.attn.hook_v", H(5), "blocks.0.hook_v_input", H(5)))
-    edges_to_keep.append(
-        ("blocks.0.hook_v_input", H(5), "blocks.0.hook_resid_pre", COL)
-    )
+    edges_to_keep.append(("blocks.0.hook_v_input", H(5), "blocks.0.hook_resid_pre", COL))
     edges_to_keep.append(("blocks.2.attn.hook_q", H(0), "blocks.2.hook_q_input", H(0)))
-    edges_to_keep.append(
-        ("blocks.2.hook_q_input", H(0), "blocks.0.hook_resid_pre", COL)
-    )
-    edges_to_keep.append(
-        ("blocks.2.hook_q_input", H(0), "blocks.0.attn.hook_result", H(5))
-    )
+    edges_to_keep.append(("blocks.2.hook_q_input", H(0), "blocks.0.hook_resid_pre", COL))
+    edges_to_keep.append(("blocks.2.hook_q_input", H(0), "blocks.0.attn.hook_result", H(5)))
     edges_to_keep.append(("blocks.2.attn.hook_k", H(0), "blocks.2.hook_k_input", H(0)))
-    edges_to_keep.append(
-        ("blocks.2.hook_k_input", H(0), "blocks.0.hook_resid_pre", COL)
-    )
-    edges_to_keep.append(
-        ("blocks.2.hook_k_input", H(0), "blocks.0.attn.hook_result", H(5))
-    )
+    edges_to_keep.append(("blocks.2.hook_k_input", H(0), "blocks.0.hook_resid_pre", COL))
+    edges_to_keep.append(("blocks.2.hook_k_input", H(0), "blocks.0.attn.hook_result", H(5)))
     edges_to_keep.append(("blocks.2.attn.hook_v", H(0), "blocks.2.hook_v_input", H(0)))
-    edges_to_keep.append(
-        ("blocks.2.hook_v_input", H(0), "blocks.1.attn.hook_result", H(4))
-    )
+    edges_to_keep.append(("blocks.2.hook_v_input", H(0), "blocks.1.attn.hook_result", H(4)))
     edges_to_keep.append(("blocks.1.attn.hook_v", H(4), "blocks.1.hook_v_input", H(4)))
-    edges_to_keep.append(
-        ("blocks.1.hook_v_input", H(4), "blocks.0.hook_resid_pre", COL)
-    )
+    edges_to_keep.append(("blocks.1.hook_v_input", H(4), "blocks.0.hook_resid_pre", COL))
     edges_to_keep.append(("blocks.1.attn.hook_q", H(2), "blocks.1.hook_q_input", H(2)))
     edges_to_keep.append(("blocks.1.attn.hook_k", H(2), "blocks.1.hook_k_input", H(2)))
-    edges_to_keep.append(
-        ("blocks.1.hook_q_input", H(2), "blocks.0.hook_resid_pre", COL)
-    )
-    edges_to_keep.append(
-        ("blocks.1.hook_k_input", H(2), "blocks.0.hook_resid_pre", COL)
-    )
-    edges_to_keep.append(
-        ("blocks.1.hook_q_input", H(2), "blocks.0.attn.hook_result", H(5))
-    )
-    edges_to_keep.append(
-        ("blocks.1.hook_k_input", H(2), "blocks.0.attn.hook_result", H(5))
-    )
+    edges_to_keep.append(("blocks.1.hook_q_input", H(2), "blocks.0.hook_resid_pre", COL))
+    edges_to_keep.append(("blocks.1.hook_k_input", H(2), "blocks.0.hook_resid_pre", COL))
+    edges_to_keep.append(("blocks.1.hook_q_input", H(2), "blocks.0.attn.hook_result", H(5)))
+    edges_to_keep.append(("blocks.1.hook_k_input", H(2), "blocks.0.attn.hook_result", H(5)))
 
     for L3H in [H(0), H(6)]:
-        edges_to_keep.append(
-            ("blocks.3.hook_resid_post", COL, "blocks.3.attn.hook_result", L3H)
-        )
-        edges_to_keep.append(
-            ("blocks.3.attn.hook_q", L3H, "blocks.3.hook_q_input", L3H)
-        )
-        edges_to_keep.append(
-            ("blocks.3.hook_q_input", L3H, "blocks.1.attn.hook_result", H(4))
-        )
-        edges_to_keep.append(
-            ("blocks.3.attn.hook_v", L3H, "blocks.3.hook_v_input", L3H)
-        )
-        edges_to_keep.append(
-            ("blocks.3.hook_v_input", L3H, "blocks.0.hook_resid_pre", COL)
-        )
-        edges_to_keep.append(
-            ("blocks.3.hook_v_input", L3H, "blocks.0.attn.hook_result", H(5))
-        )
-        edges_to_keep.append(
-            ("blocks.3.attn.hook_k", L3H, "blocks.3.hook_k_input", L3H)
-        )
-        edges_to_keep.append(
-            ("blocks.3.hook_k_input", L3H, "blocks.2.attn.hook_result", H(0))
-        )
-        edges_to_keep.append(
-            ("blocks.3.hook_k_input", L3H, "blocks.1.attn.hook_result", H(2))
-        )
+        edges_to_keep.append(("blocks.3.hook_resid_post", COL, "blocks.3.attn.hook_result", L3H))
+        edges_to_keep.append(("blocks.3.attn.hook_q", L3H, "blocks.3.hook_q_input", L3H))
+        edges_to_keep.append(("blocks.3.hook_q_input", L3H, "blocks.1.attn.hook_result", H(4)))
+        edges_to_keep.append(("blocks.3.attn.hook_v", L3H, "blocks.3.hook_v_input", L3H))
+        edges_to_keep.append(("blocks.3.hook_v_input", L3H, "blocks.0.hook_resid_pre", COL))
+        edges_to_keep.append(("blocks.3.hook_v_input", L3H, "blocks.0.attn.hook_result", H(5)))
+        edges_to_keep.append(("blocks.3.attn.hook_k", L3H, "blocks.3.hook_k_input", L3H))
+        edges_to_keep.append(("blocks.3.hook_k_input", L3H, "blocks.2.attn.hook_result", H(0)))
+        edges_to_keep.append(("blocks.3.hook_k_input", L3H, "blocks.1.attn.hook_result", H(2)))
 
     assert len(edges_to_keep) == 37, len(
         edges_to_keep

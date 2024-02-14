@@ -26,9 +26,7 @@ class EmacsRenderer(pio.base_renderers.ColabRenderer):
         with open(fhtml, "w") as f:
             f.write(html)
 
-        return {
-            "text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'
-        }
+        return {"text/html": f'<a href="{self.base_url}/{fhtml}">Click to open {fhtml}</a>'}
 
 
 pio.renderers["emacs"] = EmacsRenderer()
@@ -51,10 +49,7 @@ all_runs = api.runs(path="remix_school-of-rock/acdc", filters={"group": ACDC_GRO
 df = pd.DataFrame()
 for r in all_runs:
     try:
-        cfg = {
-            k: r.config[k]
-            for k in ["reset_network", "zero_ablation", "metric", "task", "threshold"]
-        }
+        cfg = {k: r.config[k] for k in ["reset_network", "zero_ablation", "metric", "task", "threshold"]}
         d = {
             k: r.summary[k]
             for k in [
@@ -80,15 +75,10 @@ for r in all_runs:
 
 start_idx: float = df.index.max() + 1
 
-all_runs = api.runs(
-    path="remix_school-of-rock/induction-sp-replicate", filters={"group": SP_GROUP}
-)
+all_runs = api.runs(path="remix_school-of-rock/induction-sp-replicate", filters={"group": SP_GROUP})
 for r in all_runs:
     try:
-        cfg = {
-            k: r.config[k]
-            for k in ["reset_subject", "zero_ablation", "loss_type", "lambda_reg"]
-        }
+        cfg = {k: r.config[k] for k in ["reset_subject", "zero_ablation", "loss_type", "lambda_reg"]}
         d = {
             k: r.summary[k]
             for k in [
@@ -120,9 +110,7 @@ for r in all_runs:
 
 # %%
 
-df.loc[:, "color"] = df.apply(
-    lambda x: f"{x['alg']}-reset={x['reset_network']:.0f}", axis=1
-)
+df.loc[:, "color"] = df.apply(lambda x: f"{x['alg']}-reset={x['reset_network']:.0f}", axis=1)
 
 # Scatter plot of num_edges vs cur_metric grouped by reset_network
 

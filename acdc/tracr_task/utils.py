@@ -26,9 +26,7 @@ from acdc.acdc_utils import kl_divergence
 bos = "BOS"
 
 
-def get_tracr_model_input_and_tl_model(
-    task: Literal["reverse", "proportion"], device, return_im=False
-):
+def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], device, return_im=False):
     """
     This function adapts Neel's TransformerLens porting of tracr
     """
@@ -159,22 +157,12 @@ def get_tracr_model_input_and_tl_model(
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.b_O"] = model.params[f"transformer/layer_{l}/attn/linear"][
-            "b"
-        ]
+        sd[f"blocks.{l}.attn.b_O"] = model.params[f"transformer/layer_{l}/attn/linear"]["b"]
 
-        sd[f"blocks.{l}.mlp.W_in"] = model.params[
-            f"transformer/layer_{l}/mlp/linear_1"
-        ]["w"]
-        sd[f"blocks.{l}.mlp.b_in"] = model.params[
-            f"transformer/layer_{l}/mlp/linear_1"
-        ]["b"]
-        sd[f"blocks.{l}.mlp.W_out"] = model.params[
-            f"transformer/layer_{l}/mlp/linear_2"
-        ]["w"]
-        sd[f"blocks.{l}.mlp.b_out"] = model.params[
-            f"transformer/layer_{l}/mlp/linear_2"
-        ]["b"]
+        sd[f"blocks.{l}.mlp.W_in"] = model.params[f"transformer/layer_{l}/mlp/linear_1"]["w"]
+        sd[f"blocks.{l}.mlp.b_in"] = model.params[f"transformer/layer_{l}/mlp/linear_1"]["b"]
+        sd[f"blocks.{l}.mlp.W_out"] = model.params[f"transformer/layer_{l}/mlp/linear_2"]["w"]
+        sd[f"blocks.{l}.mlp.b_out"] = model.params[f"transformer/layer_{l}/mlp/linear_2"]["b"]
     print(sd.keys())
 
     # Convert weights to tensors and load into the tl_model
@@ -196,9 +184,7 @@ def get_tracr_model_input_and_tl_model(
 
     if task == "reverse":  # this doesn't make sense for proportion
 
-        def decode_model_output(
-            logits, output_encoder=OUTPUT_ENCODER, bos_token=INPUT_ENCODER.bos_token
-        ):
+        def decode_model_output(logits, output_encoder=OUTPUT_ENCODER, bos_token=INPUT_ENCODER.bos_token):
             max_output_indices = logits.squeeze(dim=0).argmax(dim=-1)
             decoded_output = output_encoder.decode(max_output_indices.tolist())
             decoded_output_with_bos = [bos_token] + decoded_output[1:]
@@ -302,14 +288,10 @@ def get_all_tracr_things(
         if method == "legacy":
             batch_size = 6  # there are only 6 permutations of 3 elements
             seq_len = 4
-            data_tens = torch.zeros(
-                (batch_size, seq_len), device=device, dtype=torch.long
-            )
+            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
 
             if num_examples != batch_size:
-                raise ValueError(
-                    "num_examples must be equal to batch_size for reverse task"
-                )
+                raise ValueError("num_examples must be equal to batch_size for reverse task")
 
             vals = [0, 1, 2]
 
@@ -317,9 +299,7 @@ def get_all_tracr_things(
                 data_tens[perm_idx] = torch.tensor([3, perm[0], perm[1], perm[2]])
 
             patch_data_indices = get_perm(len(data_tens))
-            warnings.warn(
-                "TODO Test that this only considers the relevant part of the sequence..."
-            )
+            warnings.warn("TODO Test that this only considers the relevant part of the sequence...")
 
             patch_data_tens = data_tens[patch_data_indices]
 
@@ -328,37 +308,25 @@ def get_all_tracr_things(
             # another permutation as patch data.
             batch_size = 30
             seq_len = 4
-            data_tens = torch.zeros(
-                (batch_size, seq_len), device=device, dtype=torch.long
-            )
-            patch_data_tens = torch.zeros(
-                (batch_size, seq_len), device=device, dtype=torch.long
-            )
+            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+            patch_data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
             vals = [0, 1, 2]
             bos_token = 3
             assert bos_token not in vals
             if num_examples != batch_size:
-                raise ValueError(
-                    "num_examples must be equal to batch_size for reverse task"
-                )
+                raise ValueError("num_examples must be equal to batch_size for reverse task")
 
             perms = list(itertools.permutations(vals))
             pairs = list(itertools.permutations(perms, 2))
             print(perms, pairs)
 
             for perm_idx, (perm1, perm2) in enumerate(pairs):
-                data_tens[perm_idx] = torch.tensor(
-                    [bos_token, perm1[0], perm1[1], perm1[2]]
-                )
-                patch_data_tens[perm_idx] = torch.tensor(
-                    [bos_token, perm2[0], perm2[1], perm2[2]]
-                )
+                data_tens[perm_idx] = torch.tensor([bos_token, perm1[0], perm1[1], perm1[2]])
+                patch_data_tens[perm_idx] = torch.tensor([bos_token, perm2[0], perm2[1], perm2[2]])
 
         with torch.no_grad():
             model_out = tl_model(data_tens)
-            base_model_logprobs = torch.log(
-                model_out
-            )  # not softmax bc tracr model output is already in [0, 1]
+            base_model_logprobs = torch.log(model_out)  # not softmax bc tracr model output is already in [0, 1]
         test_metrics = {
             "kl_div": partial(
                 kl_divergence,
@@ -408,9 +376,7 @@ def get_all_tracr_things(
             assert all([c in ["w", "x", "y", "z"] for c in s]), s
             return torch.tensor([ord(c) - ord("w") for c in s]).int()
 
-        data_tens = torch.zeros(
-            (num_examples * 2, seq_len), dtype=torch.long, device=device
-        )
+        data_tens = torch.zeros((num_examples * 2, seq_len), dtype=torch.long, device=device)
         alphabet = "wxyz"
         import itertools
 

@@ -89,9 +89,7 @@ class TLACDCExperiment:
         ] = "reverse",  # we get best performance with reverse I think
         names_mode: Literal["normal", "reverse", "shuffle"] = "normal",
         early_exit: bool = False,
-        positions: Optional[
-            List[int]
-        ] = None,  # if None, do not split by position. TODO change the syntax here...
+        positions: Optional[List[int]] = None,  # if None, do not split by position. TODO change the syntax here...
     ):
         """Initialize the ACDC experiment"""
 
@@ -126,9 +124,7 @@ class TLACDCExperiment:
         self.step_idx = 0
         self.hook_verbose = hook_verbose
         self.skip_edges = skip_edges
-        self.corr = TLACDCCorrespondence.setup_from_model(
-            self.model, use_pos_embed=use_pos_embed
-        )
+        self.corr = TLACDCCorrespondence.setup_from_model(self.model, use_pos_embed=use_pos_embed)
 
         self.ds = ds
         self.ref_ds = ref_ds
@@ -181,9 +177,7 @@ class TLACDCExperiment:
         self.update_cur_metric(recalc_metric=True, recalc_edges=True)
 
         self.threshold = threshold
-        assert (
-            self.ref_ds is not None or self.zero_ablation
-        ), "If you're doing random ablation, you need a ref ds"
+        assert self.ref_ds is not None or self.zero_ablation, "If you're doing random ablation, you need a ref ds"
 
         self.parallel_hypotheses = parallel_hypotheses
         if self.parallel_hypotheses != 1:
@@ -205,19 +199,10 @@ class TLACDCExperiment:
             self.metrics_to_plot["times_diff"] = []
 
     def verify_model_setup(self):
-        if (
-            not self.model.cfg.attn_only
-            and "use_hook_mlp_in" in self.model.cfg.to_dict()
-        ):
-            assert (
-                self.model.cfg.use_hook_mlp_in
-            ), "Need to be able to see hook MLP inputs"
-        assert (
-            self.model.cfg.use_attn_result
-        ), "Need to be able to see split by head outputs"
-        assert (
-            self.model.cfg.use_split_qkv_input
-        ), "Need to be able to see split by head QKV inputs"
+        if not self.model.cfg.attn_only and "use_hook_mlp_in" in self.model.cfg.to_dict():
+            assert self.model.cfg.use_hook_mlp_in, "Need to be able to see hook MLP inputs"
+        assert self.model.cfg.use_attn_result, "Need to be able to see split by head outputs"
+        assert self.model.cfg.use_split_qkv_input, "Need to be able to see split by head QKV inputs"
 
     def update_cur_metric(self, recalc_metric=True, recalc_edges=True, initial=False):
         if recalc_metric:
@@ -247,9 +232,7 @@ class TLACDCExperiment:
     def reverse_topologically_sort_corr(self):
         """Topologically sort the template corr"""
         for hook in self.model.hook_dict.values():
-            assert (
-                len(hook.fwd_hooks) == 0
-            ), "Don't load the model with hooks *then* call this"
+            assert len(hook.fwd_hooks) == 0, "Don't load the model with hooks *then* call this"
 
         new_graph = OrderedDict()
         cache = OrderedDict()
@@ -327,19 +310,17 @@ class TLACDCExperiment:
             ], f"All incoming edges should be the same type not {incoming_edge_types}"
 
             for receiver_index in self.corr.edges[hook.name]:
-                list_of_senders = list(
-                    self.corr.edges[hook.name][receiver_index].keys()
-                )
+                list_of_senders = list(self.corr.edges[hook.name][receiver_index].keys())
                 assert (
                     len(list_of_senders) <= 1
-                ), "This is a direct computation, so there should only be one sender node"  # TODO maybe implement expect-to-be-1 ???
+                ), (
+                    "This is a direct computation, so there should only be one sender node"
+                )  # TODO maybe implement expect-to-be-1 ???
                 if len(list_of_senders) == 0:
                     continue
                 sender_node = list_of_senders[0]
 
-                sender_indices = list(
-                    self.corr.edges[hook.name][receiver_index][sender_node].keys()
-                )
+                sender_indices = list(self.corr.edges[hook.name][receiver_index][sender_node].keys())
                 assert (
                     len(sender_indices) <= 1
                 ), "This is a direct computation, so there should only be one sender index"
@@ -347,19 +328,15 @@ class TLACDCExperiment:
                     continue
                 sender_index = sender_indices[0]
 
-                edge = self.corr.edges[hook.name][receiver_index][sender_node][
-                    sender_index
-                ]
+                edge = self.corr.edges[hook.name][receiver_index][sender_node][sender_index]
 
                 if edge.present:
                     if verbose:
-                        print(
-                            f"Overwrote {receiver_index} with norm {old_z[receiver_index.as_index].norm().item()}"
-                        )
+                        print(f"Overwrote {receiver_index} with norm {old_z[receiver_index.as_index].norm().item()}")
 
-                    hook_point_input[receiver_index.as_index] = old_z[
-                        receiver_index.as_index
-                    ].to(hook_point_input.device)
+                    hook_point_input[receiver_index.as_index] = old_z[receiver_index.as_index].to(
+                        hook_point_input.device
+                    )
 
             return hook_point_input
 
@@ -383,12 +360,8 @@ class TLACDCExperiment:
 
         for receiver_node_index in self.corr.edges[hook.name]:
             for sender_node_name in self.corr.edges[hook.name][receiver_node_index]:
-                for sender_node_index in self.corr.edges[hook.name][
-                    receiver_node_index
-                ][sender_node_name]:
-                    edge = self.corr.edges[hook.name][receiver_node_index][
-                        sender_node_name
-                    ][
+                for sender_node_index in self.corr.edges[hook.name][receiver_node_index][sender_node_name]:
+                    edge = self.corr.edges[hook.name][receiver_node_index][sender_node_name][
                         sender_node_index
                     ]  # TODO maybe less crazy nested indexes ... just make local variables each time?
 
@@ -411,26 +384,16 @@ class TLACDCExperiment:
 
                     if edge.edge_type == EdgeType.ADDITION:
                         # Add the effect of the new head (from the current forward pass)
-                        hook_point_input[
-                            receiver_node_index.as_index
-                        ] += self.global_cache.online_cache[sender_node_name][
-                            sender_node_index.as_index
-                        ].to(
-                            hook_point_input.device
-                        )
+                        hook_point_input[receiver_node_index.as_index] += self.global_cache.online_cache[
+                            sender_node_name
+                        ][sender_node_index.as_index].to(hook_point_input.device)
                         # Remove the effect of this head (from the corrupted data)
-                        hook_point_input[
-                            receiver_node_index.as_index
-                        ] -= self.global_cache.corrupted_cache[sender_node_name][
-                            sender_node_index.as_index
-                        ].to(
-                            hook_point_input.device
-                        )
+                        hook_point_input[receiver_node_index.as_index] -= self.global_cache.corrupted_cache[
+                            sender_node_name
+                        ][sender_node_index.as_index].to(hook_point_input.device)
 
                     else:
-                        raise ValueError(
-                            f"Unknown edge type {edge.edge_type} ... {edge}"
-                        )
+                        raise ValueError(f"Unknown edge type {edge.edge_type} ... {edge}")
 
         return hook_point_input
 
@@ -484,22 +447,15 @@ class TLACDCExperiment:
             for node in nodes:
                 fwd_hooks = self.model.hook_dict[node.name].fwd_hooks
                 if len(fwd_hooks) > 0 and not sender_and_receiver_both_ok:
-                    resolved_hooks_dicts = [
-                        fwd_hook.hook.hooks_dict_ref() for fwd_hook in fwd_hooks
-                    ]
+                    resolved_hooks_dicts = [fwd_hook.hook.hooks_dict_ref() for fwd_hook in fwd_hooks]
                     assert all(
-                        [
-                            resolved_hooks_dict == resolved_hooks_dicts[0]
-                            for resolved_hooks_dict in resolved_hooks_dicts
-                        ]
+                        [resolved_hooks_dict == resolved_hooks_dicts[0] for resolved_hooks_dict in resolved_hooks_dicts]
                     ), f"{resolved_hooks_dicts}\nUnexpected behavior: different hook dict for different hooks on the same HookPoint?! https://github.com/neelnanda-io/TransformerLens/issues/297"
                     for fwd_hook in resolved_hooks_dicts[0].values():
                         if isinstance(fwd_hook, partial):
                             print("Hello!")  # TODO remove
                         hook_func_name = (
-                            fwd_hook.__wrapped__.__name__
-                            if isinstance(fwd_hook, partial)
-                            else fwd_hook.__name__
+                            fwd_hook.__wrapped__.__name__ if isinstance(fwd_hook, partial) else fwd_hook.__name__
                         )
                         assert (
                             "sender_hook" in hook_func_name
@@ -535,10 +491,7 @@ class TLACDCExperiment:
 
             # add hooks to zero out all these hook points
             hook_name_bool_function = lambda hook_name: any(
-                [
-                    hook_name_substring in hook_name
-                    for hook_name_substring in hook_name_substrings
-                ]
+                [hook_name_substring in hook_name for hook_name_substring in hook_name_substrings]
             )
             self.model.add_hook(
                 name=hook_name_bool_function,
@@ -579,27 +532,15 @@ class TLACDCExperiment:
                 )
 
             receiver_node_names = list(
-                set(
-                    [
-                        node.name
-                        for node in self.corr.nodes_list()
-                        if node.incoming_edge_type != EdgeType.PLACEHOLDER
-                    ]
-                )
+                set([node.name for node in self.corr.nodes_list() if node.incoming_edge_type != EdgeType.PLACEHOLDER])
             )
-            for (
-                receiver_name
-            ) in (
-                receiver_node_names
-            ):  # TODO could remove the nodes that don't have any parents...
+            for receiver_name in receiver_node_names:  # TODO could remove the nodes that don't have any parents...
                 self.model.add_hook(
                     name=receiver_name,
                     hook=partial(self.receiver_hook, verbose=self.hook_verbose),
                 )
 
-        if (
-            add_sender_hooks
-        ):  # bug fixed; crucial to add sender hooks AFTER the receivers
+        if add_sender_hooks:  # bug fixed; crucial to add sender hooks AFTER the receivers
             self.add_all_sender_hooks(
                 cache="online",
                 skip_direct_computation=False,
@@ -621,25 +562,13 @@ class TLACDCExperiment:
             pickle.dump(edges_list, f)
 
     def add_sender_hook(self, node, override=False):
-        if (
-            not override
-            and len(fwd_hooks := self.model.hook_dict[node.name].fwd_hooks) > 0
-        ):
-            resolved_hooks_dicts = [
-                fwd_hook.hook.hooks_dict_ref() for fwd_hook in fwd_hooks
-            ]
+        if not override and len(fwd_hooks := self.model.hook_dict[node.name].fwd_hooks) > 0:
+            resolved_hooks_dicts = [fwd_hook.hook.hooks_dict_ref() for fwd_hook in fwd_hooks]
             assert all(
-                [
-                    resolved_hooks_dict == resolved_hooks_dicts[0]
-                    for resolved_hooks_dict in resolved_hooks_dicts
-                ]
+                [resolved_hooks_dict == resolved_hooks_dicts[0] for resolved_hooks_dict in resolved_hooks_dicts]
             ), f"{resolved_hooks_dicts}\nUnexpected behavior: different hook dict for different hooks on the same HookPoint?! https://github.com/neelnanda-io/TransformerLens/issues/297"
             for fwd_hook in resolved_hooks_dicts[0].values():
-                hook_func_name = (
-                    fwd_hook.__wrapped__.__name__
-                    if isinstance(fwd_hook, partial)
-                    else fwd_hook.__name__
-                )
+                hook_func_name = fwd_hook.__wrapped__.__name__ if isinstance(fwd_hook, partial) else fwd_hook.__name__
                 assert (
                     "sender_hook" in hook_func_name
                 ), f"You should only add sender hooks to {node.name}, and this: {hook_func_name} doesn't look like a sender hook"
@@ -659,24 +588,14 @@ class TLACDCExperiment:
 
     def add_receiver_hook(self, node, override=False, prepend=False):
         if (
-            not override
-            and len(fwd_hooks := self.model.hook_dict[node.name].fwd_hooks) > 0
+            not override and len(fwd_hooks := self.model.hook_dict[node.name].fwd_hooks) > 0
         ):  # repeating code from add_sender_hooks
-            resolved_hooks_dicts = [
-                fwd_hook.hook.hooks_dict_ref() for fwd_hook in fwd_hooks
-            ]
+            resolved_hooks_dicts = [fwd_hook.hook.hooks_dict_ref() for fwd_hook in fwd_hooks]
             assert all(
-                [
-                    resolved_hooks_dict == resolved_hooks_dicts[0]
-                    for resolved_hooks_dict in resolved_hooks_dicts
-                ]
+                [resolved_hooks_dict == resolved_hooks_dicts[0] for resolved_hooks_dict in resolved_hooks_dicts]
             ), f"{resolved_hooks_dicts}\nUnexpected behavior: different hook dict for different hooks on the same HookPoint?! https://github.com/neelnanda-io/TransformerLens/issues/297"
             for fwd_hook in resolved_hooks_dicts[0].values():
-                hook_func_name = (
-                    fwd_hook.__wrapped__.__name__
-                    if isinstance(fwd_hook, partial)
-                    else fwd_hook.__name__
-                )
+                hook_func_name = fwd_hook.__wrapped__.__name__ if isinstance(fwd_hook, partial) else fwd_hook.__name__
                 assert (
                     "receiver_hook" in hook_func_name
                 ), f"You should only add receiver hooks to {node.name}, and this: {hook_func_name} doesn't look like a receiver hook"
@@ -697,9 +616,7 @@ class TLACDCExperiment:
         start_step_time = time.time()
         self.step_idx += 1
 
-        self.update_cur_metric(
-            recalc_metric=True, recalc_edges=True
-        )  # NUDB: calculate metric
+        self.update_cur_metric(recalc_metric=True, recalc_edges=True)  # NUDB: calculate metric
         initial_metric = self.cur_metric
 
         cur_metric = initial_metric
@@ -709,10 +626,7 @@ class TLACDCExperiment:
         if self.current_node.incoming_edge_type.value != EdgeType.PLACEHOLDER.value:
             self.add_receiver_hook(self.current_node, override=True, prepend=True)
 
-        if (
-            self.current_node.incoming_edge_type.value
-            == EdgeType.DIRECT_COMPUTATION.value
-        ):
+        if self.current_node.incoming_edge_type.value == EdgeType.DIRECT_COMPUTATION.value:
             # basically, because these nodes are the only ones that act as both receivers and senders
             self.add_sender_hook(self.current_node, override=True)
 
@@ -724,23 +638,15 @@ class TLACDCExperiment:
         ]:
             is_this_node_used = True
 
-        sender_names_list = list(
-            self.corr.edges[self.current_node.name][self.current_node.index]
-        )
+        sender_names_list = list(self.corr.edges[self.current_node.name][self.current_node.index])
 
-        if (
-            self.names_mode == "random"
-        ):  # NUDB: could be replaced by some kind of iterator
+        if self.names_mode == "random":  # NUDB: could be replaced by some kind of iterator
             random.shuffle(sender_names_list)
         elif self.names_mode == "reverse":
             sender_names_list = list(reversed(sender_names_list))
 
         for sender_name in sender_names_list:
-            sender_indices_list = list(
-                self.corr.edges[self.current_node.name][self.current_node.index][
-                    sender_name
-                ]
-            )
+            sender_indices_list = list(self.corr.edges[self.current_node.name][self.current_node.index][sender_name])
 
             if self.indices_mode == "random":
                 random.shuffle(sender_indices_list)
@@ -748,9 +654,7 @@ class TLACDCExperiment:
                 sender_indices_list = list(reversed(sender_indices_list))
 
             for sender_index in sender_indices_list:
-                edge = self.corr.edges[self.current_node.name][self.current_node.index][
-                    sender_name
-                ][sender_index]
+                edge = self.corr.edges[self.current_node.name][self.current_node.index][sender_name][sender_index]
                 cur_parent = self.corr.nodes[sender_name][sender_index]
 
                 if edge.edge_type == EdgeType.PLACEHOLDER:
@@ -769,16 +673,12 @@ class TLACDCExperiment:
                 if self.second_metric is not None:
                     old_second_metric = self.cur_second_metric
 
-                self.update_cur_metric(
-                    recalc_edges=False
-                )  # warning: gives fast evaluation, though edge count is wrong
+                self.update_cur_metric(recalc_edges=False)  # warning: gives fast evaluation, though edge count is wrong
                 evaluated_metric = (
                     self.cur_metric
                 )  # self.metric(self.model(self.ds)) # OK, don't calculate second metric?
 
-                if (
-                    early_stop
-                ):  # for debugging the effects of one and only one forward pass WITH a corrupted edge
+                if early_stop:  # for debugging the effects of one and only one forward pass WITH a corrupted edge
                     return
 
                 if self.verbose:
@@ -841,10 +741,7 @@ class TLACDCExperiment:
                 print("Removing redundant node", self.current_node)
             self.remove_redundant_node(self.current_node)
 
-        if (
-            is_this_node_used
-            and self.current_node.incoming_edge_type.value != EdgeType.PLACEHOLDER.value
-        ):
+        if is_this_node_used and self.current_node.incoming_edge_type.value != EdgeType.PLACEHOLDER.value:
             fname = f"ims/img_new_{self.step_idx}.png"
             show(
                 self.corr,
@@ -863,17 +760,13 @@ class TLACDCExperiment:
 
         # increment the current node
         self.increment_current_node()
-        self.update_cur_metric(
-            recalc_metric=True, recalc_edges=True
-        )  # so we log the correct state...
+        self.update_cur_metric(recalc_metric=True, recalc_edges=True)  # so we log the correct state...
 
     def remove_redundant_node(self, node, safe=True, allow_fails=True):
         if safe:
             for parent_name in self.corr.edges[node.name][node.index]:
                 for parent_index in self.corr.edges[node.name][node.index][parent_name]:
-                    if self.corr.edges[node.name][node.index][parent_name][
-                        parent_index
-                    ].present:
+                    if self.corr.edges[node.name][node.index][parent_name][parent_index].present:
                         raise Exception(
                             f"You should not be removing a node that is still used by another node {node} {(parent_name, parent_index)}"
                         )
@@ -889,18 +782,14 @@ class TLACDCExperiment:
 
             for child_node in children:
                 if (
-                    self.corr.edges[child_node.name][child_node.index][cur_node.name][
-                        cur_node.index
-                    ].edge_type.value
+                    self.corr.edges[child_node.name][child_node.index][cur_node.name][cur_node.index].edge_type.value
                     == EdgeType.PLACEHOLDER.value
                 ):
                     # TODO be a bit more permissive, this can include all things when we have dropped an attention head...
                     continue
 
                 try:
-                    self.corr.remove_edge(
-                        child_node.name, child_node.index, cur_node.name, cur_node.index
-                    )
+                    self.corr.remove_edge(child_node.name, child_node.index, cur_node.name, cur_node.index)
                 except KeyError as e:
                     print("Got an error", e)
                     if allow_fails:
@@ -909,15 +798,13 @@ class TLACDCExperiment:
                         raise e
 
                 remove_this = True
-                for parent_of_child_name in self.corr.edges[child_node.name][
-                    child_node.index
-                ]:
-                    for parent_of_child_index in self.corr.edges[child_node.name][
-                        child_node.index
-                    ][parent_of_child_name]:
-                        if self.corr.edges[child_node.name][child_node.index][
-                            parent_of_child_name
-                        ][parent_of_child_index].present:
+                for parent_of_child_name in self.corr.edges[child_node.name][child_node.index]:
+                    for parent_of_child_index in self.corr.edges[child_node.name][child_node.index][
+                        parent_of_child_name
+                    ]:
+                        if self.corr.edges[child_node.name][child_node.index][parent_of_child_name][
+                            parent_of_child_index
+                        ].present:
                             remove_this = False
                             break
                     if not remove_this:
@@ -932,10 +819,7 @@ class TLACDCExperiment:
             rest1,
         ) in self.corr.edges.items():  # TODO: use parent and children abstractions
             for child_index, rest2 in rest1.items():
-                if (
-                    self.current_node.name in rest2
-                    and self.current_node.index in rest2[self.current_node.name]
-                ):
+                if self.current_node.name in rest2 and self.current_node.index in rest2[self.current_node.name]:
                     if rest2[self.current_node.name][self.current_node.index].present:
                         return True
 
@@ -944,15 +828,11 @@ class TLACDCExperiment:
         self.update_cur_metric(recalc_metric=True, recalc_edges=True)
         old_metric = self.cur_metric
 
-        parent_names = list(
-            self.corr.edges[self.current_node.name][self.current_node.index].keys()
-        )
+        parent_names = list(self.corr.edges[self.current_node.name][self.current_node.index].keys())
 
         for parent_name in parent_names:
             try:
-                rest1 = self.corr.edges[self.current_node.name][
-                    self.current_node.index
-                ][parent_name]
+                rest1 = self.corr.edges[self.current_node.name][self.current_node.index][parent_name]
             except KeyError:
                 continue
 
@@ -960,9 +840,7 @@ class TLACDCExperiment:
 
             for parent_index in parent_indices:
                 try:
-                    edge = self.corr.edges[self.current_node.name][
-                        self.current_node.index
-                    ][parent_name][parent_index]
+                    edge = self.corr.edges[self.current_node.name][self.current_node.index][parent_name][parent_index]
                 except KeyError:
                     continue
 
@@ -986,9 +864,7 @@ class TLACDCExperiment:
         return False
 
     def find_next_node(self) -> Optional[TLACDCInterpNode]:
-        next_index = next_key(
-            self.corr.nodes[self.current_node.name], self.current_node.index
-        )
+        next_index = next_key(self.corr.nodes[self.current_node.name], self.current_node.index)
         if next_index is not None:
             return self.corr.nodes[self.current_node.name][next_index]
 
@@ -1008,8 +884,7 @@ class TLACDCExperiment:
             if (
                 self.current_node is None
                 or self.current_node_connected()
-                or self.current_node.name
-                in ["blocks.0.hook_resid_pre", "hook_pos_embed", "hook_embed"]
+                or self.current_node.name in ["blocks.0.hook_resid_pre", "hook_pos_embed", "hook_embed"]
             ):
                 break
 
@@ -1035,9 +910,7 @@ class TLACDCExperiment:
                 receiver_torch_index.hashable_tuple,
                 sender_torch_index.hashable_tuple,
             )
-            ret[(receiver_name, receiver_index, sender_name, sender_index)] = (
-                edge.present
-            )
+            ret[(receiver_name, receiver_index, sender_name, sender_index)] = edge.present
 
         if fpath is not None:
             assert fpath.endswith(".pth")
@@ -1072,12 +945,8 @@ class TLACDCExperiment:
             sender_name,
             sender_index,
         ), is_present in subgraph.items():
-            receiver_torch_index, sender_torch_index = TorchIndex(
-                receiver_index
-            ), TorchIndex(sender_index)
-            edge = self.corr.edges[receiver_name][receiver_torch_index][sender_name][
-                sender_torch_index
-            ]
+            receiver_torch_index, sender_torch_index = TorchIndex(receiver_index), TorchIndex(sender_index)
+            edge = self.corr.edges[receiver_name][receiver_torch_index][sender_name][sender_torch_index]
             edge.present = is_present
         print("Done!")
 
@@ -1103,19 +972,13 @@ class TLACDCExperiment:
 
                 found_at_least_one_readable_line = True
                 for back_index in range(6):
-                    previous_line = lines[
-                        i - back_index
-                    ]  # magic number because of the formatting of the log lines
+                    previous_line = lines[i - back_index]  # magic number because of the formatting of the log lines
                     if previous_line.startswith("Node: "):
                         break
                 else:
                     raise ValueError("Didn't find corresponding node line")
-                parent_name, parent_list, current_name, current_list = extract_info(
-                    previous_line
-                )
-                parent_torch_index, current_torch_index = TorchIndex(
-                    parent_list
-                ), TorchIndex(current_list)
+                parent_name, parent_list, current_name, current_list = extract_info(previous_line)
+                parent_torch_index, current_torch_index = TorchIndex(parent_list), TorchIndex(current_list)
                 self.corr.edges[current_name][current_torch_index][parent_name][
                     parent_torch_index
                 ].present = keeping_connection
@@ -1126,21 +989,17 @@ class TLACDCExperiment:
 
     def remove_all_non_attention_connections(self):
         # remove all connection except the MLP connections
-        includes_attention = (
-            [  # substrings of hook names that imply they're related to attention
-                "attn",
-                "hook_q",
-                "hook_k",
-                "hook_v",
-            ]
-        )
+        includes_attention = [  # substrings of hook names that imply they're related to attention
+            "attn",
+            "hook_q",
+            "hook_k",
+            "hook_v",
+        ]
 
         for receiver_name in self.corr.edges:
             for receiver_index in self.corr.edges[receiver_name]:
                 for sender_name in self.corr.edges[receiver_name][receiver_index]:
-                    for receiever_index in self.corr.edges[receiver_name][
-                        receiver_index
-                    ][sender_name]:
+                    for receiever_index in self.corr.edges[receiver_name][receiver_index][sender_name]:
                         related_to_attention = False
 
                         for substr in includes_attention:
@@ -1151,9 +1010,7 @@ class TLACDCExperiment:
                         if not related_to_attention:
                             continue
 
-                        edge = self.corr.edges[receiver_name][receiver_index][
-                            sender_name
-                        ][receiever_index]
+                        edge = self.corr.edges[receiver_name][receiver_index][sender_name][receiever_index]
                         edge.present = False
 
     def add_back_head(self, layer_idx, head_idx):
@@ -1167,9 +1024,7 @@ class TLACDCExperiment:
                     and len(hook_idx.hashable_tuple) >= 3
                     and int(hook_idx.hashable_tuple[2]) == head_idx
                 ):
-                    assert (
-                        edge.present == False or edge.edge_type == EdgeType.PLACEHOLDER
-                    ), (
+                    assert edge.present == False or edge.edge_type == EdgeType.PLACEHOLDER, (
                         tupl,
                         edge,
                         hook_name,

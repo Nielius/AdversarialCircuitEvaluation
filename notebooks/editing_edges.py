@@ -116,11 +116,7 @@ print(
 for i in range(EXAMPLE_LENGTH):
     if mask_rep[EXAMPLE_NO, i]:
         print(f"At position {i} there is induction")
-        print(
-            tl_model.to_str_tokens(
-                toks_int_values[EXAMPLE_NO : EXAMPLE_NO + 1, i : i + 1]
-            )
-        )
+        print(tl_model.to_str_tokens(toks_int_values[EXAMPLE_NO : EXAMPLE_NO + 1, i : i + 1]))
 
 # %% [markdown]
 # <p>Let's get the initial loss on the induction examples</p>
@@ -191,9 +187,7 @@ def change_direct_output_connections(exp, invert=False):
         ("blocks.1.attn.hook_result", TorchIndex([None, None, 6])),
     ]
 
-    inputs_to_residual_stream_end = exp.corr.edges[residual_stream_end_name][
-        residual_stream_end_index
-    ]
+    inputs_to_residual_stream_end = exp.corr.edges[residual_stream_end_name][residual_stream_end_index]
     for sender_name in inputs_to_residual_stream_end:
         for sender_index in inputs_to_residual_stream_end[sender_name]:
             edge = inputs_to_residual_stream_end[sender_name][sender_index]

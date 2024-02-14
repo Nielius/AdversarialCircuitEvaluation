@@ -38,9 +38,7 @@ def main(
         OUT_RELPATH = Path(".cache") / "plots_data"
         OUT_HOME_DIR = Path(os.environ["HOME"]) / OUT_RELPATH
     else:
-        OUT_RELPATH = Path(
-            "experiments/results/arthur_plots_data"
-        )  # trying to remove extra things from acdc/
+        OUT_RELPATH = Path("experiments/results/arthur_plots_data")  # trying to remove extra things from acdc/
         OUT_HOME_DIR = OUT_RELPATH
 
     assert OUT_HOME_DIR.exists()
@@ -92,9 +90,7 @@ def main(
             job=job,
             synchronous=True,
             just_print_commands=False,
-            check_wandb=WandbIdentifier(
-                f"agarriga-col-{alg}-{task[-5:]}-{{i:04d}}b", "collect", "acdc"
-            ),
+            check_wandb=WandbIdentifier(f"agarriga-col-{alg}-{task[-5:]}-{{i:04d}}b", "collect", "acdc"),
         )
 
     else:
@@ -130,13 +126,7 @@ if __name__ == "__main__":
                 KubernetesJob(
                     container="ghcr.io/rhaps0dy/automatic-circuit-discovery:e1884e4",
                     cpu=6,
-                    gpu=(
-                        0
-                        if not IS_ADRIA
-                        or task.startswith("tracr")
-                        or alg not in ["acdc", "canonical"]
-                        else 1
-                    ),
+                    gpu=(0 if not IS_ADRIA or task.startswith("tracr") or alg not in ["acdc", "canonical"] else 1),
                     mount_training=False,
                 ),
                 testing=False,

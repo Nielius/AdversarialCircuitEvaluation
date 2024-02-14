@@ -6,9 +6,7 @@ if get_ipython() is not None:
     get_ipython().magic("load_ext autoreload")
     get_ipython().magic("autoreload 2")
 
-    __file__ = os.path.join(
-        get_ipython().run_line_magic("pwd", ""), "notebooks", "df_plots_data.py"
-    )
+    __file__ = os.path.join(get_ipython().run_line_magic("pwd", ""), "notebooks", "df_plots_data.py")
 
     from notebooks.emacs_plotly_render import set_plotly_renderer
 
@@ -25,9 +23,7 @@ from acdc.acdc_graphics import dict_merge
 
 # %%
 
-DATA_DIR = (
-    Path(__file__).resolve().parent.parent / "experiments" / "results" / "plots_data"
-)
+DATA_DIR = Path(__file__).resolve().parent.parent / "experiments" / "results" / "plots_data"
 all_data = {}
 
 for fname in os.listdir(DATA_DIR):
@@ -62,11 +58,9 @@ for weights_type, v in all_data.items():
 df = pd.DataFrame(rows)
 
 # %% Print KL
-present = df[
-    (df["alg"] == "CANONICAL")
-    & (df["weights_type"] == "trained")
-    & (df["score"] == 1.0)
-][["ablation_type", "task", "metric", "test_kl_div"]]
+present = df[(df["alg"] == "CANONICAL") & (df["weights_type"] == "trained") & (df["score"] == 1.0)][
+    ["ablation_type", "task", "metric", "test_kl_div"]
+]
 present.sort_values(["task", "ablation_type"])
 
 # %% Print Docstring stuff
@@ -80,9 +74,7 @@ for TASK in ["docstring", "ioi", "greaterthan", "tracr-proportion", "tracr-rever
         & (df["task"] == TASK)
         & (np.isfinite(df["score"]))
     ][["ablation_type", "score", *filter(lambda x: x.startswith("test_"), df.columns)]]
-    present["type"] = present["score"].map(
-        lambda x: {0.0: "corrupted_model", 1.0: "clean_model", 0.5: "canonical"}[x]
-    )
+    present["type"] = present["score"].map(lambda x: {0.0: "corrupted_model", 1.0: "clean_model", 0.5: "canonical"}[x])
     out = present[
         [
             "ablation_type",
