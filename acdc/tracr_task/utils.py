@@ -279,50 +279,30 @@ def get_all_tracr_things(
     metric_name: Literal["kl_div", "l2"],
     num_examples: int,
     device,
-    method=None,
 ):
     _, tl_model = get_tracr_model_input_and_tl_model(task=task, device=device)
     import itertools
 
     if task == "reverse":
-        if method == "legacy":
-            batch_size = 6  # there are only 6 permutations of 3 elements
-            seq_len = 4
-            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+        # In this setup, we take all 6 permutations of [0, 1, 2], and pair each one up with
+        # another permutation as patch data.
+        batch_size = 30
+        seq_len = 4
+        data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+        patch_data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
+        vals = [0, 1, 2]
+        bos_token = 3
+        assert bos_token not in vals
+        if num_examples != batch_size:
+            raise ValueError("num_examples must be equal to batch_size for reverse task")
 
-            if num_examples != batch_size:
-                raise ValueError("num_examples must be equal to batch_size for reverse task")
+        perms = list(itertools.permutations(vals))
+        pairs = list(itertools.permutations(perms, 2))
+        print(perms, pairs)
 
-            vals = [0, 1, 2]
-
-            for perm_idx, perm in enumerate(itertools.permutations(vals)):
-                data_tens[perm_idx] = torch.tensor([3, perm[0], perm[1], perm[2]])
-
-            patch_data_indices = get_perm(len(data_tens))
-            warnings.warn("TODO Test that this only considers the relevant part of the sequence...")
-
-            patch_data_tens = data_tens[patch_data_indices]
-
-        else:
-            # In this setup, we take all 6 permutations of [0, 1, 2], and pair each one up with
-            # another permutation as patch data.
-            batch_size = 30
-            seq_len = 4
-            data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
-            patch_data_tens = torch.zeros((batch_size, seq_len), device=device, dtype=torch.long)
-            vals = [0, 1, 2]
-            bos_token = 3
-            assert bos_token not in vals
-            if num_examples != batch_size:
-                raise ValueError("num_examples must be equal to batch_size for reverse task")
-
-            perms = list(itertools.permutations(vals))
-            pairs = list(itertools.permutations(perms, 2))
-            print(perms, pairs)
-
-            for perm_idx, (perm1, perm2) in enumerate(pairs):
-                data_tens[perm_idx] = torch.tensor([bos_token, perm1[0], perm1[1], perm1[2]])
-                patch_data_tens[perm_idx] = torch.tensor([bos_token, perm2[0], perm2[1], perm2[2]])
+        for perm_idx, (perm1, perm2) in enumerate(pairs):
+            data_tens[perm_idx] = torch.tensor([bos_token, perm1[0], perm1[1], perm1[2]])
+            patch_data_tens[perm_idx] = torch.tensor([bos_token, perm2[0], perm2[1], perm2[2]])
 
         with torch.no_grad():
             model_out = tl_model(data_tens)

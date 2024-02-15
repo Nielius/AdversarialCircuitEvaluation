@@ -31,11 +31,11 @@ from acdc.tracr_task.utils import (
     get_tracr_reverse_edges,
 )
 from subnetwork_probing.sp_utils import (
-    MaskedTransformer,
     edge_level_corr,
     print_stats,
     set_ground_truth_edges,
 )
+from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
 
 
 def save_edges(corr: TLACDCCorrespondence, fname: str):
@@ -50,7 +50,7 @@ def save_edges(corr: TLACDCCorrespondence, fname: str):
 
 def train_edge_sp(
     args,
-    masked_model: MaskedTransformer,
+    masked_model: EdgeLevelMaskedTransformer,
     all_task_things: AllDataThings,
     print_every: int = 100,
     get_true_edges: Callable = None,
@@ -109,16 +109,13 @@ def train_edge_sp(
     canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
         masked_model.model, use_pos_embed=masked_model.use_pos_embed
     )
-    try:
-        d_trues = set(get_true_edges())
-        set_ground_truth_edges(canonical_circuit_subgraph, d_trues)
-    except:
-        pass
+    d_trues = set(get_true_edges())
+    set_ground_truth_edges(canonical_circuit_subgraph, d_trues)
 
     for epoch in tqdm(range(epochs)):  # tqdm.notebook.tqdm(range(epochs)):
         masked_model.train()
         trainer.zero_grad()
-        with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
+        with masked_model.with_fwd_hooks_and_new_ablation_cache(**valid_context_args) as hooked_model:
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes before forward")
             metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.validation_data))
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes after forward")
@@ -131,15 +128,12 @@ def train_edge_sp(
         if epoch % print_every == 0 and args.print_stats:
             statss = []
             for i in range(3):  # sample multiple times to get average edge_tpr etc.
-                corr = edge_level_corr(masked_model)
-                try:
-                    stats = print_stats(corr, canonical_circuit_subgraph, do_print=False)
-                    statss.append(stats)
-                except:
-                    pass
+                corr = masked_model.get_edge_level_correspondence_from_masks()
+                stats = print_stats(corr, canonical_circuit_subgraph, do_print=False)
+                statss.append(stats)
             stats = {k: sum(s[k] for s in statss) / len(statss) for k in statss[0]}
             with torch.no_grad():
-                with masked_model.with_fwd_hooks_and_new_cache(**test_context_args) as hooked_model:
+                with masked_model.with_fwd_hooks_and_new_ablation_cache(**test_context_args) as hooked_model:
                     test_metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.test_data))
             test_loss = test_metric_loss + regularizer_term * lambda_reg
 
@@ -161,7 +155,7 @@ def train_edge_sp(
             # print_stats(corr, d_trues, canonical_circuit_subgraph)
 
     # Save edges to create data for plots later
-    corr = edge_level_corr(masked_model)
+    corr = masked_model.get_edge_level_correspondence_from_masks()
     edges_fname = "edges.pth"  # note this is a pickle file
     wandb_dir = os.environ.get("WANDB_DIR")
     if wandb_dir is None:
@@ -181,19 +175,19 @@ def train_edge_sp(
         # Final training loss
         metric_loss = 0.0
         if args.zero_ablation:
-            masked_model.do_zero_caching()
+            masked_model.calculate_and_store_zero_ablation_cache()
         else:
-            masked_model.do_random_resample_caching(all_task_things.validation_patch_data)
+            masked_model.calculate_and_store_resampling_ablation_cache(all_task_things.validation_patch_data)
 
         for _ in range(args.n_loss_average_runs):
-            with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
+            with masked_model.with_fwd_hooks_and_new_ablation_cache(**valid_context_args) as hooked_model:
                 metric_loss += all_task_things.validation_metric(hooked_model(all_task_things.validation_data)).item()
         print(f"Final train/validation metric: {metric_loss:.4f}")
 
         if args.zero_ablation:
-            masked_model.do_zero_caching()
+            masked_model.calculate_and_store_zero_ablation_cache()
         else:
-            masked_model.do_random_resample_caching(all_task_things.test_patch_data)
+            masked_model.calculate_and_store_resampling_ablation_cache(all_task_things.test_patch_data)
 
         test_specific_metrics = {}
         for k, fn in test_metric_fns.items():
@@ -201,7 +195,7 @@ def train_edge_sp(
             test_specific_metric_term = 0.0
             # Test loss
             for _ in range(args.n_loss_average_runs):
-                with masked_model.with_fwd_hooks_and_new_cache(**valid_context_args) as hooked_model:
+                with masked_model.with_fwd_hooks_and_new_ablation_cache(**valid_context_args) as hooked_model:
                     test_specific_metric_term += fn(hooked_model(all_task_things.test_data)).item()
             test_specific_metrics[f"test_{k}"] = test_specific_metric_term
 
@@ -214,22 +208,6 @@ def train_edge_sp(
             **test_specific_metrics,
         )
     return masked_model, log_dict
-
-
-def proportion_of_binary_scores(model: MaskedTransformer) -> float:
-    """How many of the scores are binary, i.e. 0 or 1
-    (after going through the sigmoid with fp32 precision loss)
-    """
-    binary_count = 0
-    total_count = 0
-
-    for mask_name in model.mask_logits_names:
-        mask = model.sample_mask(mask_name)
-        for v in mask.view(-1):
-            total_count += 1
-            if v == 0 or v == 1:
-                binary_count += 1
-    return binary_count / total_count
 
 
 parser = argparse.ArgumentParser("python train_edge_sp.py")
@@ -323,7 +301,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown task {args.task}")
 
-    masked_model = MaskedTransformer(all_task_things.tl_model)
+    masked_model = EdgeLevelMaskedTransformer(all_task_things.tl_model)
     masked_model = masked_model.to(args.device)
 
     masked_model.freeze_weights()
@@ -335,7 +313,7 @@ if __name__ == "__main__":
         get_true_edges=get_true_edges,
     )
 
-    percentage_binary = proportion_of_binary_scores(masked_model)
+    percentage_binary = masked_model.proportion_of_binary_scores()
 
     # Update dict with some different things
     # log_dict["nodes_to_mask"] = list(map(str, log_dict["nodes_to_mask"]))

@@ -9,7 +9,7 @@ from transformer_lens import HookedTransformer
 from transformer_lens.hook_points import HookPoint
 
 from acdc.TLACDCEdge import Edge, HookPointName, IndexedHookPointName
-from subnetwork_probing.sp_utils import MaskedTransformer
+from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
 
 
 class MaskedRunner:
@@ -18,7 +18,7 @@ class MaskedRunner:
 
     This class is intended to be mostly stateless."""
 
-    masked_transformer: MaskedTransformer
+    masked_transformer: EdgeLevelMaskedTransformer
 
     _parent_index_per_child: dict[tuple[HookPointName, IndexedHookPointName], int]
     _indexed_parents_per_child: dict[HookPointName, list[IndexedHookPointName]]
@@ -27,7 +27,7 @@ class MaskedRunner:
         assert (
             model.cfg.positional_embedding_type in {"standard"}
         ), "This is a temporary check; I don't know what values are possible here and what to do with them (in terms of whether or not they're using pos embed)"
-        self.masked_transformer = MaskedTransformer(
+        self.masked_transformer = EdgeLevelMaskedTransformer(
             model=model, use_pos_embed=model.cfg.positional_embedding_type == "standard"
         )
         self.masked_transformer.freeze_weights()
@@ -88,7 +88,7 @@ class MaskedRunner:
             self._set_mask_for_edge(edge.child, edge.parent, float("-inf"))
 
         try:
-            with self.masked_transformer.with_fwd_hooks_and_new_cache(
+            with self.masked_transformer.with_fwd_hooks_and_new_ablation_cache(
                 ablation="resample", ablation_data=patch_input
             ) as hooked_model:
                 yield hooked_model

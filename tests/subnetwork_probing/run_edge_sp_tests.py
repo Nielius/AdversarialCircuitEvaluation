@@ -4,7 +4,7 @@ import torch
 
 # from tests.subnetwork_probing.test_masked_hookpoint import test_cache_writeable_forward_pass
 from acdc.tracr_task.utils import get_all_tracr_things, get_tracr_reverse_edges
-from subnetwork_probing.train import MaskedTransformer
+from subnetwork_probing.train import NodeLevelMaskedTransformer
 
 # %%
 
@@ -20,7 +20,7 @@ from subnetwork_probing.train import MaskedTransformer
 # test_cache_writeable_forward_pass()
 # %%
 all_tracr_things = get_all_tracr_things(task="reverse", metric_name="l2", num_examples=30, device=torch.device("cpu"))
-masked_model = MaskedTransformer(all_tracr_things.tl_model, use_pos_embed=True)
+masked_model = NodeLevelMaskedTransformer(all_tracr_things.tl_model, use_pos_embed=True)
 # %%
 masked_model.do_zero_caching()
 # rng_state = torch.random.get_rng_state()
@@ -42,7 +42,7 @@ def test_f_cache_implementation():
     global all_tracr_things
     # global masked_model
 
-    masked_model = MaskedTransformer(all_tracr_things.tl_model, no_ablate=True)
+    masked_model = NodeLevelMaskedTransformer(all_tracr_things.tl_model, no_ablate=True)
     context_args = dict(ablation="resample", ablation_data=all_tracr_things.validation_patch_data)
     out1 = masked_model.model(all_tracr_things.validation_data)
     with masked_model.with_fwd_hooks_and_new_cache(**context_args) as hooked_model:
@@ -64,7 +64,7 @@ def test_reverse_gt_correct():
         task="reverse", metric_name="l2", num_examples=30, device=torch.device("cpu")
     )
     gt_edges = get_tracr_reverse_edges()
-    masked_model = MaskedTransformer(all_task_things.tl_model, use_pos_embed=True)
+    masked_model = NodeLevelMaskedTransformer(all_task_things.tl_model, use_pos_embed=True)
     masked_model.freeze_weights()
 
     # Zero out the model logits...
@@ -116,7 +116,7 @@ def test_empty_circuit():
     all_tracr_things = get_all_tracr_things(
         task="reverse", metric_name="l2", num_examples=30, device=torch.device("cpu")
     )
-    masked_model = MaskedTransformer(all_tracr_things.tl_model, use_pos_embed=True)
+    masked_model = NodeLevelMaskedTransformer(all_tracr_things.tl_model, use_pos_embed=True)
     masked_model.freeze_weights()
 
     for logit_name in masked_model._mask_logits_dict:
@@ -171,7 +171,7 @@ def test_ablate_output_circuit():
     all_tracr_things = get_all_tracr_things(
         task="reverse", metric_name="l2", num_examples=30, device=torch.device("cpu")
     )
-    masked_model = MaskedTransformer(all_tracr_things.tl_model, use_pos_embed=True)
+    masked_model = NodeLevelMaskedTransformer(all_tracr_things.tl_model, use_pos_embed=True)
     masked_model.freeze_weights()
 
     output_logit_name = f"blocks.{masked_model.model.cfg.n_layers - 1}.hook_resid_post"
@@ -217,7 +217,7 @@ def test_2_edge_circuit():
     all_task_things = get_all_tracr_things(
         task="reverse", metric_name="l2", num_examples=30, device=torch.device("cpu")
     )
-    masked_model = MaskedTransformer(all_task_things.tl_model, use_pos_embed=True)
+    masked_model = NodeLevelMaskedTransformer(all_task_things.tl_model, use_pos_embed=True)
     masked_model.freeze_weights()
 
     for logit_name in masked_model._mask_logits_dict:

@@ -170,18 +170,6 @@ def make_yamls(
 if __name__ == "__main__":
     for reset_networks in [False]:
         tasks = ["tracr-proportion"]
-        # main(
-        #     [task],
-        #     KubernetesJob(
-        #         container="ghcr.io/tkwa/subnetwork_probing:v1",
-        #         cpu=4,
-        #         gpu=0 if task.startswith("tracr") else 1,
-        #         mount_training=False,
-        #     ),
-        #     name=f"sp-{task}",
-        #     testing=False,
-        #     reset_networks=reset_networks,
-        # )
         yamls_list = make_yamls(
             tasks,
             testing=False,

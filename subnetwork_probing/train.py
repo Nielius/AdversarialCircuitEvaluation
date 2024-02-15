@@ -102,7 +102,7 @@ def log_plotly_bar_chart(x: List[str], y: List[float]) -> None:
     wandb.log({"mask_scores": fig})
 
 
-class MaskedTransformer(torch.nn.Module):
+class NodeLevelMaskedTransformer(torch.nn.Module):
     model: HookedTransformer
     cache: ActivationCache
     mask_logits: torch.nn.ParameterList
@@ -196,7 +196,7 @@ class MaskedTransformer(torch.nn.Module):
 
 
 def visualize_mask(
-    masked_model: MaskedTransformer,
+    masked_model: NodeLevelMaskedTransformer,
 ) -> tuple[int, list[TLACDCInterpNode]]:
     number_of_heads = masked_model.model.cfg.n_heads
     number_of_layers = masked_model.model.cfg.n_layers
@@ -250,7 +250,7 @@ def visualize_mask(
 
 def train_sp(
     args,
-    masked_model: MaskedTransformer,
+    masked_model: NodeLevelMaskedTransformer,
     all_task_things: AllDataThings,
 ):
     epochs = args.epochs
@@ -365,7 +365,7 @@ def train_sp(
     return masked_model, to_log_dict
 
 
-def proportion_of_binary_scores(model: MaskedTransformer) -> float:
+def proportion_of_binary_scores(model: NodeLevelMaskedTransformer) -> float:
     """How many of the scores are binary, i.e. 0 or 1
     (after going through the sigmoid with fp32 precision loss)
     """
@@ -466,7 +466,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown task {args.task}")
 
-    masked_model = MaskedTransformer(all_task_things.tl_model)
+    masked_model = NodeLevelMaskedTransformer(all_task_things.tl_model)
     masked_model = masked_model.to(args.device)
 
     masked_model.freeze_weights()
