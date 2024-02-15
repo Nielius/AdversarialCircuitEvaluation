@@ -43,7 +43,7 @@ jobs:
       - run:
           name: Publish Docker image
           command: |
-            echo "${GHCR_DOCKER_TOKEN}" | docker login --username "${GHCR_DOCKER_USER}" --password-stdin
+            echo "${GHCR_DOCKER_TOKEN}" | docker login ghcr.io --username "${GHCR_DOCKER_USER}" --password-stdin
             docker push ghcr.io/alignmentresearch/acdc
 
 workflows:
