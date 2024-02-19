@@ -250,7 +250,7 @@ if False:
 
                     warnings.warn("We take min of both, plausibly the (edges, kl) result is actually unattainable")
 
-        labels = fig2.data[0]["regularization_params"]
+        fig2.data[0]["regularization_params"]
         kls = torch.tensor(kls)
         return log_edges, kls, lambdas
 

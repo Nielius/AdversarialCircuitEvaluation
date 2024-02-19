@@ -86,7 +86,7 @@ def test_reverse_gt_correct():
     print(f"Model has {n_active_logits}/{n_total_logits} active logits and {len(gt_edges)} ground truth edges")
 
     # Run the model once without hooks
-    rng_state = torch.random.get_rng_state()
+    torch.random.get_rng_state()
     out1 = masked_model.model(all_task_things.validation_data)
 
     # Now run the masked model

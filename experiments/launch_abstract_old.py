@@ -5,7 +5,6 @@ from experiments.launcher import KubernetesJob, WandbIdentifier, launch
 
 def main(use_kubernetes: bool, testing: bool, CPU: int = 4):
     task = "docstring"
-    reset_network = 0
     kwargses = [
         {"threshold": 0.067, "metric": "docstring_metric"},
         {"threshold": 0.005, "metric": "kl_div"},

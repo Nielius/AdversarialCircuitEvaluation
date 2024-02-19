@@ -39,7 +39,7 @@ class TLACDCInterpNode:
         return f"TLACDCInterpNode({self.name}, {self.index})"
 
     def __str__(self) -> str:
-        index_str = "" if len(self.index.hashable_tuple) < 3 else f"_{self.index.hashable_tuple[2]}"
+        "" if len(self.index.hashable_tuple) < 3 else f"_{self.index.hashable_tuple[2]}"
         return f"{self.name}{self.index}"
 
 

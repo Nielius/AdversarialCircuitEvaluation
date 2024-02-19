@@ -490,9 +490,9 @@ class TLACDCExperiment:
                 hook_name_substrings.append("blocks.0.hook_resid_pre")
 
             # add hooks to zero out all these hook points
-            hook_name_bool_function = lambda hook_name: any(
-                [hook_name_substring in hook_name for hook_name_substring in hook_name_substrings]
-            )
+            def hook_name_bool_function(hook_name):
+                return any([hook_name_substring in hook_name for hook_name_substring in hook_name_substrings])
+
             self.model.add_hook(
                 name=hook_name_bool_function,
                 hook=lambda z, hook: torch.zeros_like(z),
@@ -509,7 +509,7 @@ class TLACDCExperiment:
                 scramble_positions,
             )
         self.model.cache_all(self.global_cache.corrupted_cache)
-        corrupt_stuff = self.model(self.ref_ds)
+        self.model(self.ref_ds)
 
         if self.verbose:
             print("Done corrupting things")
@@ -613,7 +613,7 @@ class TLACDCExperiment:
         if self.current_node is None:
             return
 
-        start_step_time = time.time()
+        time.time()
         self.step_idx += 1
 
         self.update_cur_metric(recalc_metric=True, recalc_edges=True)  # NUDB: calculate metric
@@ -897,7 +897,6 @@ class TLACDCExperiment:
         return cnt
 
     def reload_hooks(self):
-        old_corr = self.corr
         self.corr = TLACDCCorrespondence.setup_from_model(self.model)
 
     def save_subgraph(self, fpath: Optional[str] = None, return_it=False) -> None:
@@ -1024,7 +1023,7 @@ class TLACDCExperiment:
                     and len(hook_idx.hashable_tuple) >= 3
                     and int(hook_idx.hashable_tuple[2]) == head_idx
                 ):
-                    assert edge.present == False or edge.edge_type == EdgeType.PLACEHOLDER, (
+                    assert edge.present is False or edge.edge_type == EdgeType.PLACEHOLDER, (
                         tupl,
                         edge,
                         hook_name,

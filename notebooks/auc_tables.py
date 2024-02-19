@@ -69,7 +69,6 @@ with io.StringIO() as buf:
                         )
                     return out
 
-                old_out = out
                 out = out.apply(make_bold_column, axis=1)
                 out.columns = pd.MultiIndex.from_tuples(out.columns)
                 out.style.to_latex(buf, hrules=True, environment="table", caption=name)

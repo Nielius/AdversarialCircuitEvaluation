@@ -281,7 +281,7 @@ def filter_nodes(nodes: set[tuple[str, TorchIndex]]) -> set[tuple[str, TorchInde
                     (f"blocks.{node[0].split()[1]}.hook_mlp_out", node[1])
                 )  # assume that we're not doing any neuron or positional stuff
             except:
-                a = 1
+                pass
             all_nodes.remove(node)
         for letter in "qkv":
             hook_name = f"hook_{letter}_input"

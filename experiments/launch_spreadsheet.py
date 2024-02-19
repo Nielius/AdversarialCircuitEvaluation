@@ -45,11 +45,9 @@ def main(
                         thresholds = 10 ** np.linspace(-5, -1, 21)
 
                         if task == "tracr-reverse":
-                            num_examples = 6
-                            seq_len = 5
+                            pass
                         elif task == "tracr-proportion":
-                            num_examples = 50
-                            seq_len = 5
+                            pass
                         else:
                             raise ValueError("Unknown task")
 
@@ -63,10 +61,7 @@ def main(
                             thresholds = 10 ** np.linspace(-3, -1, NUM_SPACINGS)
                         else:
                             raise ValueError("Unknown metric")
-                        num_examples = 100
-                        seq_len = -1
                     elif task == "docstring":
-                        seq_len = 41
                         if metric == "kl_div":
                             # Typical metric value range: 0.0-10.0
                             thresholds = base_thresholds
@@ -75,10 +70,7 @@ def main(
                             thresholds = 10 ** np.linspace(-4, 0, 21)
                         else:
                             raise ValueError("Unknown metric")
-                        num_examples = 50
                     elif task == "ioi":
-                        num_examples = 100
-                        seq_len = -1
                         if metric == "kl_div":
                             # Typical metric value range: 0.0-12.0
                             thresholds = 10 ** np.linspace(-6, 0, 31)
@@ -88,8 +80,6 @@ def main(
                         else:
                             raise ValueError("Unknown metric")
                     elif task == "induction":
-                        seq_len = 300
-                        num_examples = 50
                         if metric == "kl_div":
                             # Typical metric value range: 0.0-16.0
                             thresholds = base_thresholds

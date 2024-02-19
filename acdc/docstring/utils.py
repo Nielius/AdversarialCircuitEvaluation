@@ -238,7 +238,9 @@ def get_docstring_subgraph_true_edges():
     edges_to_keep = []
 
     COL = TorchIndex([None])
-    H = lambda i: TorchIndex([None, None, i])
+
+    def H(i):
+        return TorchIndex([None, None, i])
 
     edges_to_keep.append(("blocks.1.hook_v_input", H(4), "blocks.0.attn.hook_result", H(5)))
     edges_to_keep.append(("blocks.0.attn.hook_v", H(5), "blocks.0.hook_v_input", H(5)))

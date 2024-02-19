@@ -684,7 +684,7 @@ class IOIDataset:
         assert seed is not None
         random.seed(seed)
 
-        if not (N == 1 or prepend_bos == False or tokenizer.bos_token_id == tokenizer.eos_token_id):
+        if not (N == 1 or prepend_bos is False or tokenizer.bos_token_id == tokenizer.eos_token_id):
             warnings.warn("Probably word_idx will be calculated incorrectly due to this formatting")
         assert not (symmetric and prompt_type == "ABC")
         assert (prompts is not None) or (not symmetric) or (N % 2 == 0), f"{symmetric} {N}"
