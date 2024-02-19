@@ -7,7 +7,7 @@ from transformer_lens.HookedTransformerConfig import (
     HookedTransformerConfig as LegacyHookedTransformerConfig,
 )
 
-from acdc.docstring.utils import get_all_docstring_things, AllDataThings
+from acdc.docstring.utils import AllDataThings, get_all_docstring_things
 from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
 
 
@@ -77,7 +77,7 @@ def test_induction_mask_reimplementation_correct():
 
         torch.set_rng_state(rng_state)
         with model.with_fwd_hooks_and_new_ablation_cache(
-            ablation="resample", ablation_data=all_task_things.validation_patch_data
+            patch_data=all_task_things.validation_patch_data
         ) as masked_model:
             output_masked_transformer = masked_model(all_task_things.validation_data)
 
@@ -100,19 +100,19 @@ def test_cache_writeable_forward_pass():
 
     # Run the model once on an unmodified cache
     rng_state = torch.random.get_rng_state()
-    masked_model.calculate_and_store_resampling_ablation_cache(all_task_things.validation_patch_data)
-    context_args = dict(ablation="resample", ablation_data=all_task_things.validation_patch_data)
-    with masked_model.with_fwd_hooks_and_new_ablation_cache(**context_args) as hooked_model:
+    masked_model.calculate_and_store_ablation_cache(all_task_things.validation_patch_data)
+    validation_patch_data = all_task_things.validation_patch_data
+    with masked_model.with_fwd_hooks_and_new_ablation_cache(validation_patch_data) as hooked_model:
         out1 = hooked_model(all_task_things.validation_data)
 
     # Now modify the cache and do it again
     torch.random.set_rng_state(rng_state)
-    masked_model.calculate_and_store_resampling_ablation_cache(all_task_things.validation_patch_data)
+    masked_model.calculate_and_store_ablation_cache(all_task_things.validation_patch_data)
     for name in masked_model.ablation_cache:
         # We can't modify ActivationCache items, so we modify the underlying dict.
         masked_model.ablation_cache.cache_dict[name] = 1 - masked_model.ablation_cache[name]
 
-    with masked_model.with_fwd_hooks_and_new_ablation_cache(**context_args) as hooked_model:
+    with masked_model.with_fwd_hooks_and_new_ablation_cache(validation_patch_data) as hooked_model:
         out2 = hooked_model(all_task_things.validation_data)
 
     # We don't use allclose; the values should be exactly the same

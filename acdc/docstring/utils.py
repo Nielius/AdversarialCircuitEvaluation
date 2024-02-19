@@ -43,7 +43,7 @@ class AllDataThings:
 
 def get_docstring_model(device="cuda"):
     tl_model = HookedTransformer.from_pretrained(
-        "attn-only-4l",
+        "attn-only-4l",  # see https://neelnanda-io.github.io/TransformerLens/generated/model_properties_table.html
     )
     tl_model.set_use_attn_result(True)
     tl_model.set_use_split_qkv_input(True)
@@ -86,13 +86,11 @@ def get_all_docstring_things(
     validation_data = toks_int_values[:num_examples]
     validation_labels = toks_int_labels[:num_examples]
     validation_wrong_labels = toks_int_wrong_labels[:num_examples]
-    validation_mask = None
     validation_patch_data = toks_int_values_other[:num_examples]
 
     test_data = toks_int_values[num_examples:]
     test_labels = toks_int_labels[num_examples:]
     test_wrong_labels = toks_int_wrong_labels[num_examples:]
-    test_mask = None
     test_patch_data = toks_int_values_other[num_examples:]
 
     with torch.no_grad():

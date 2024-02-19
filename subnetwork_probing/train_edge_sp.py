@@ -30,12 +30,11 @@ from acdc.tracr_task.utils import (
     get_tracr_proportion_edges,
     get_tracr_reverse_edges,
 )
+from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
 from subnetwork_probing.sp_utils import (
-    edge_level_corr,
     print_stats,
     set_ground_truth_edges,
 )
-from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
 
 
 def save_edges(corr: TLACDCCorrespondence, fname: str):
@@ -100,10 +99,10 @@ def train_edge_sp(
 
     print(f"Using memory {torch.cuda.memory_allocated():_} bytes after optimizer init")
     if args.zero_ablation:
-        valid_context_args = test_context_args = dict(ablation="zero")
+        validation_patch_data = test_patch_data = None
     else:
-        valid_context_args = dict(ablation="resample", ablation_data=all_task_things.validation_patch_data)
-        test_context_args = dict(ablation="resample", ablation_data=all_task_things.test_patch_data)
+        validation_patch_data = all_task_things.validation_patch_data
+        test_patch_data = all_task_things.test_patch_data
 
     # Get canonical subgraph so we can print TPR, FPR
     canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
@@ -115,7 +114,7 @@ def train_edge_sp(
     for epoch in tqdm(range(epochs)):  # tqdm.notebook.tqdm(range(epochs)):
         masked_model.train()
         trainer.zero_grad()
-        with masked_model.with_fwd_hooks_and_new_ablation_cache(**valid_context_args) as hooked_model:
+        with masked_model.with_fwd_hooks_and_new_ablation_cache(validation_patch_data) as hooked_model:
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes before forward")
             metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.validation_data))
             # print(f"Using memory {torch.cuda.memory_allocated():_} bytes after forward")
@@ -133,7 +132,7 @@ def train_edge_sp(
                 statss.append(stats)
             stats = {k: sum(s[k] for s in statss) / len(statss) for k in statss[0]}
             with torch.no_grad():
-                with masked_model.with_fwd_hooks_and_new_ablation_cache(**test_context_args) as hooked_model:
+                with masked_model.with_fwd_hooks_and_new_ablation_cache(test_patch_data) as hooked_model:
                     test_metric_loss = all_task_things.validation_metric(hooked_model(all_task_things.test_data))
             test_loss = test_metric_loss + regularizer_term * lambda_reg
 
@@ -174,20 +173,18 @@ def train_edge_sp(
 
         # Final training loss
         metric_loss = 0.0
-        if args.zero_ablation:
-            masked_model.calculate_and_store_zero_ablation_cache()
-        else:
-            masked_model.calculate_and_store_resampling_ablation_cache(all_task_things.validation_patch_data)
+        masked_model.calculate_and_store_ablation_cache(
+            all_task_things.validation_patch_data if not args.zero_ablation else None
+        )
 
         for _ in range(args.n_loss_average_runs):
-            with masked_model.with_fwd_hooks_and_new_ablation_cache(**valid_context_args) as hooked_model:
+            with masked_model.with_fwd_hooks_and_new_ablation_cache(validation_patch_data) as hooked_model:
                 metric_loss += all_task_things.validation_metric(hooked_model(all_task_things.validation_data)).item()
         print(f"Final train/validation metric: {metric_loss:.4f}")
 
-        if args.zero_ablation:
-            masked_model.calculate_and_store_zero_ablation_cache()
-        else:
-            masked_model.calculate_and_store_resampling_ablation_cache(all_task_things.test_patch_data)
+        masked_model.calculate_and_store_ablation_cache(
+            all_task_things.test_patch_data if not args.zero_ablation else None
+        )
 
         test_specific_metrics = {}
         for k, fn in test_metric_fns.items():
@@ -195,7 +192,7 @@ def train_edge_sp(
             test_specific_metric_term = 0.0
             # Test loss
             for _ in range(args.n_loss_average_runs):
-                with masked_model.with_fwd_hooks_and_new_ablation_cache(**valid_context_args) as hooked_model:
+                with masked_model.with_fwd_hooks_and_new_ablation_cache(validation_patch_data) as hooked_model:
                     test_specific_metric_term += fn(hooked_model(all_task_things.test_data)).item()
             test_specific_metrics[f"test_{k}"] = test_specific_metric_term
 

@@ -81,16 +81,14 @@ class MaskedRunner:
 
     @contextmanager
     def with_ablated_edges(
-        self, patch_input: Num[torch.Tensor, "batch seq"], edges_to_ablate: list[Edge]
+        self, patch_input: Num[torch.Tensor, "batch pos"], edges_to_ablate: list[Edge]
     ) -> Generator[HookedTransformer, None, None]:
         for edge in edges_to_ablate:
             assert edge in self.all_ablatable_edges  # safety check
             self._set_mask_for_edge(edge.child, edge.parent, float("-inf"))
 
         try:
-            with self.masked_transformer.with_fwd_hooks_and_new_ablation_cache(
-                ablation="resample", ablation_data=patch_input
-            ) as hooked_model:
+            with self.masked_transformer.with_fwd_hooks_and_new_ablation_cache(patch_data=patch_input) as hooked_model:
                 yield hooked_model
 
         finally:
@@ -101,8 +99,8 @@ class MaskedRunner:
 
     def run(
         self,
-        input: Num[torch.Tensor, "batch seq"],
-        patch_input: Num[torch.Tensor, "batch seq"],
+        input: Num[torch.Tensor, "batch pos"],
+        patch_input: Num[torch.Tensor, "batch pos"],
         edges_to_ablate: list[Edge],
     ) -> Num[torch.Tensor, "batch pos vocab"]:
         with self.with_ablated_edges(patch_input=patch_input, edges_to_ablate=edges_to_ablate) as hooked_model:
@@ -110,10 +108,10 @@ class MaskedRunner:
 
     def run_with_linear_combination(
         self,
-        input_embedded: Float[torch.Tensor, "batch seq"],
-        dummy_input: Integer[torch.Tensor, "batch seq"],
+        input_embedded: Float[torch.Tensor, "batch pos"],
+        dummy_input: Integer[torch.Tensor, "batch pos"],
         coefficients: Num[torch.Tensor, "batch"],
-        patch_input: Num[torch.Tensor, "batch seq"],
+        patch_input: Num[torch.Tensor, "batch pos"],
         edges_to_ablate: list[Edge],
     ) -> Float[torch.Tensor, "1 pos vocab"]:
         """'input_embedded' should be the input after the embedding layer."""

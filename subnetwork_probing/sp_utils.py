@@ -3,9 +3,6 @@ from typing import List
 import wandb
 from acdc.acdc_utils import get_edge_stats, get_node_stats
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
-from acdc.TLACDCEdge import EdgeType, TorchIndex
-from acdc.TLACDCInterpNode import TLACDCInterpNode
-from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
 
 
 def set_ground_truth_edges(canonical_circuit_subgraph: TLACDCCorrespondence, ground_truth_set: set):

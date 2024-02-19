@@ -16,7 +16,9 @@ from acdc.acdc_utils import (
 from acdc.docstring.utils import AllDataThings
 from acdc.ioi.ioi_dataset import (
     IOIDataset,
-)  # NOTE: we now import this LOCALLY so it is deterministic
+)
+
+# NOTE: we now import this LOCALLY so it is deterministic
 from acdc.TLACDCEdge import (
     EdgeType,
     TorchIndex,

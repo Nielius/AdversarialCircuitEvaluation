@@ -6,7 +6,6 @@ if IPython.get_ipython() is not None:
     IPython.get_ipython().magic("load_ext autoreload")
     IPython.get_ipython().magic("autoreload 2")
 
-import warnings
 from collections import OrderedDict
 from functools import partial
 from typing import (

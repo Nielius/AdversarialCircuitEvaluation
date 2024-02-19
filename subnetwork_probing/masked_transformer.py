@@ -1,5 +1,5 @@
 import math
-from typing import Callable, ContextManager, Dict, List, Tuple
+from typing import Callable, ContextManager, Dict, List, Tuple, TypeAlias
 
 import torch
 from einops import rearrange
@@ -10,6 +10,8 @@ from transformer_lens.hook_points import HookPoint
 
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
 from acdc.TLACDCEdge import TorchIndex
+
+PatchData: TypeAlias = Num[torch.Tensor, "batch pos"] | None  # use None if you want zero ablation
 
 
 class EdgeLevelMaskedTransformer(torch.nn.Module):
@@ -159,15 +161,17 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
             return x.unsqueeze(2)
         return x
 
-    def calculate_and_store_zero_ablation_cache(self):
+    def _calculate_and_store_zero_ablation_cache(self) -> None:
         """Caches zero for every possible mask point."""
         patch_data = torch.zeros((1, 1), device=self.device, dtype=torch.int64)  # batch pos
-        self.calculate_and_store_resampling_ablation_cache(patch_data)
+        self._calculate_and_store_resampling_ablation_cache(
+            patch_data
+        )  # wtf? is this just to initialize the cache object? if we had tests, I would refactor this
         self.ablation_cache.cache_dict = {
             name: torch.zeros_like(scores) for name, scores in self.ablation_cache.cache_dict.items()
         }
 
-    def calculate_and_store_resampling_ablation_cache(self, patch_data: Num[torch.Tensor, "batch seq"]) -> None:
+    def _calculate_and_store_resampling_ablation_cache(self, patch_data: Num[torch.Tensor, "batch pos"]) -> None:
         # Only cache the tensors needed to fill the masked out positions
         with torch.no_grad():
             model_out, self.ablation_cache = self.model.run_with_cache(
@@ -176,14 +180,27 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
                 return_cache_object=True,
             )
 
-    def get_activation_values(self, names, cache: ActivationCache):
+    def calculate_and_store_ablation_cache(self, patch_data: PatchData):
+        """Use None for the patch data for zero ablation."""
+        if patch_data is None:
+            self._calculate_and_store_zero_ablation_cache()
+        else:
+            assert isinstance(patch_data, torch.Tensor)
+            self._calculate_and_store_resampling_ablation_cache(patch_data)
+
+    def get_activation_values(
+        self, parent_names: list[str], cache: ActivationCache
+    ) -> Num[torch.Tensor, "batch seq parentindex d"]:
         """
         Returns a single tensor of the mask values used for a given hook.
         Attention is shape batch, seq, heads, head_size while MLP out is batch, seq, d_model
-        so we need to reshape things to match
+        so we need to reshape things to match.
+
+        The output is "batch seq parentindex d_model", where "parentindex" is the index in the list
+        of `parent_names`.
         """
         result = []
-        for name in names:
+        for name in parent_names:
             value = cache[name]  # b s n_heads d, or b s d
             if value.ndim == 3:
                 value = value.unsqueeze(2)  # b s 1 d
@@ -191,14 +208,14 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         return torch.cat(result, dim=2)
 
     def compute_weighted_values(self, hook: HookPoint):
-        names = self.parent_node_names[hook.name]
-        a_values = self.get_activation_values(names, self.ablation_cache)  # b s i d
-        f_values = self.get_activation_values(names, self.forward_cache)  # b s i d
+        parent_names = self.parent_node_names[hook.name]
+        ablation_values = self.get_activation_values(parent_names, self.ablation_cache)  # b s i d
+        forward_values = self.get_activation_values(parent_names, self.forward_cache)  # b s i d
         mask = self.sample_mask(hook.name)  # in_edges, nodes_per_mask, ...
 
-        weighted_a_values = torch.einsum("b s i d, i o -> b s o d", a_values, 1 - mask)
-        weighted_f_values = torch.einsum("b s i d, i o -> b s o d", f_values, mask)
-        return weighted_a_values + weighted_f_values
+        weighted_ablation_values = torch.einsum("b s i d, i o -> b s o d", ablation_values, 1 - mask)
+        weighted_forward_values = torch.einsum("b s i d, i o -> b s o d", forward_values, mask)
+        return weighted_ablation_values + weighted_forward_values
 
     def activation_mask_hook(self, hook_point_out: torch.Tensor, hook: HookPoint, verbose=False):
         """
@@ -215,11 +232,17 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         if not is_attn:
             out = rearrange(out, "b s 1 d -> b s d")
 
-        block_num = int(hook.name.split(".")[1])
-        for layer in self.model.blocks[: block_num if "mlp" in hook.name else 1]:
+        # add back attention bias
+        # Explanation: the attention bias is not part of the cached values (why not?), so we need to add it back here
+        # we need to iterate over all attention layers that come before current layer
+        current_block_index = int(hook.name.split(".")[1])
+        last_attention_block_index = (
+            current_block_index + 1 if ("resid_post" in hook.name or "mlp" in hook.name) else current_block_index
+        )
+        for layer in self.model.blocks[:last_attention_block_index]:
             out += layer.attn.b_O
 
-        if self.no_ablate and not torch.allclose(hook_point_out, out):
+        if self.no_ablate and not torch.allclose(hook_point_out, out, atol=1e-4):
             print(f"Warning: hook_point_out and out are not close for {hook.name}")
             print(f"{hook_point_out.mean()=}, {out.mean()=}")
 
@@ -246,15 +269,11 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
             (n, self.caching_hook) for n in self.forward_cache_names
         ]
 
-    def with_fwd_hooks_and_new_ablation_cache(
-        self, ablation="resample", ablation_data=None
-    ) -> ContextManager[HookedTransformer]:
-        assert ablation in ["zero", "resample"]
-        if ablation == "zero":
-            self.calculate_and_store_zero_ablation_cache()
-        else:
-            assert ablation_data is not None
-            self.calculate_and_store_resampling_ablation_cache(ablation_data)
+    def with_fwd_hooks_and_new_ablation_cache(self, patch_data: PatchData) -> ContextManager[HookedTransformer]:
+        self.calculate_and_store_ablation_cache(patch_data)
+        return self.with_fwd_hooks()
+
+    def with_fwd_hooks(self) -> ContextManager[HookedTransformer]:
         return self.model.hooks(self.fwd_hooks())
 
     def freeze_weights(self):
