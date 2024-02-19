@@ -108,7 +108,7 @@ for i in range(len(plotly_graph.data)):
 
 # Remove this from the paper figure
 
-for l in sorted(lis[1:], reverse=True):
+for l in sorted(lis[1:], reverse=True):  # noqa: E741
     plotly_graph.data = plotly_graph.data[:l] + plotly_graph.data[l + 1 :]
 
 # %%

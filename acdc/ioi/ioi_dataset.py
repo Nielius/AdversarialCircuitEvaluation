@@ -8,7 +8,6 @@ import copy
 import random
 import re
 import warnings
-from site import PREFIXES
 from typing import List, Union
 
 import numpy as np
@@ -521,7 +520,7 @@ def get_word_idxs(prompts, word_list, tokenizer):
                     idx = toks.index(w_tok)
                     if toks.count(w_tok) > 1:
                         idx = len(toks) - toks[::-1].index(w_tok) - 1
-                except:
+                except:  # noqa: E722
                     idx = toks.index(w_tok)
                     # raise ValueError(toks, w_tok, prompt["text"])
         if idx is None:
@@ -547,7 +546,7 @@ def get_end_idxs(prompts, tokenizer, name_tok_len=1, prepend_bos=False, toks=Non
         nonzers = (toks[i] == pad_token_id).nonzero()
         try:
             nonzers = nonzers[relevant_idx]
-        except:
+        except:  # noqa: E722
             print(toks[i])
             print(nonzers)
             print(relevant_idx)

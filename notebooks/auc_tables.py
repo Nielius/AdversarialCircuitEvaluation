@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # %%
 
 from IPython import get_ipython

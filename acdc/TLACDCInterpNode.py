@@ -54,10 +54,10 @@ def parse_interpnode(s: str) -> TLACDCInterpNode:
         name = name.replace("hook_resid_mid", "hook_mlp_in")
         try:
             idx = int(idx[-3:-1])
-        except:
+        except:  # noqa: E722
             try:
                 idx = int(idx[-2])
-            except:
+            except:  # noqa: E722
                 idx = None
         return TLACDCInterpNode(
             name,
@@ -69,6 +69,7 @@ def parse_interpnode(s: str) -> TLACDCInterpNode:
         print(s, e)
         raise e
 
+    # Unreachable code?!?
     return TLACDCInterpNode(name, TorchIndex([None, None, idx]), EdgeType.ADDITION)
 
 

@@ -23,6 +23,7 @@
 # SIXTEEN_HEADS_RUN
 
 import collections
+import gc
 
 import IPython
 
@@ -31,7 +32,6 @@ if IPython.get_ipython() is not None:
     IPython.get_ipython().run_line_magic("autoreload", "2")  # type: ignore
 
 import argparse
-import gc
 import json
 import math
 import os
@@ -400,7 +400,6 @@ if RESET_NETWORK:
 # %% [markdown]
 # Setup the experiment for wrapping functionality nicely
 
-import gc
 
 gc.collect()
 torch.cuda.empty_cache()
@@ -1030,7 +1029,7 @@ def get_roc_figure(all_points, names):  # TODO make the plots grey / black / yel
         try:  # TODO test this try block
             points[0].keys()
 
-        except:
+        except:  # noqa: E722
             x = [p[0] for p in points]
             y = [p[1] for p in points]
 

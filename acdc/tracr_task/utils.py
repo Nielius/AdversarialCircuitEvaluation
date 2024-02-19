@@ -113,55 +113,55 @@ def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], d
     # This is a NumPy array, the rest are Jax Arrays, but w/e it's fine.
     sd["unembed.W_U"] = np.eye(d_model, d_vocab_out)
 
-    for l in range(n_layers):
-        sd[f"blocks.{l}.attn.W_K"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/key"]["w"],
+    for layer_index in range(n_layers):
+        sd[f"blocks.{layer_index}.attn.W_K"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/key"]["w"],
             "d_model (n_heads d_head) -> n_heads d_model d_head",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.b_K"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/key"]["b"],
+        sd[f"blocks.{layer_index}.attn.b_K"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/key"]["b"],
             "(n_heads d_head) -> n_heads d_head",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.W_Q"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/query"]["w"],
+        sd[f"blocks.{layer_index}.attn.W_Q"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/query"]["w"],
             "d_model (n_heads d_head) -> n_heads d_model d_head",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.b_Q"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/query"]["b"],
+        sd[f"blocks.{layer_index}.attn.b_Q"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/query"]["b"],
             "(n_heads d_head) -> n_heads d_head",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.W_V"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/value"]["w"],
+        sd[f"blocks.{layer_index}.attn.W_V"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/value"]["w"],
             "d_model (n_heads d_head) -> n_heads d_model d_head",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.b_V"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/value"]["b"],
+        sd[f"blocks.{layer_index}.attn.b_V"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/value"]["b"],
             "(n_heads d_head) -> n_heads d_head",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.W_O"] = einops.rearrange(
-            model.params[f"transformer/layer_{l}/attn/linear"]["w"],
+        sd[f"blocks.{layer_index}.attn.W_O"] = einops.rearrange(
+            model.params[f"transformer/layer_{layer_index}/attn/linear"]["w"],
             "(n_heads d_head) d_model -> n_heads d_head d_model",
             d_head=d_head,
             n_heads=n_heads,
         )
-        sd[f"blocks.{l}.attn.b_O"] = model.params[f"transformer/layer_{l}/attn/linear"]["b"]
+        sd[f"blocks.{layer_index}.attn.b_O"] = model.params[f"transformer/layer_{layer_index}/attn/linear"]["b"]
 
-        sd[f"blocks.{l}.mlp.W_in"] = model.params[f"transformer/layer_{l}/mlp/linear_1"]["w"]
-        sd[f"blocks.{l}.mlp.b_in"] = model.params[f"transformer/layer_{l}/mlp/linear_1"]["b"]
-        sd[f"blocks.{l}.mlp.W_out"] = model.params[f"transformer/layer_{l}/mlp/linear_2"]["w"]
-        sd[f"blocks.{l}.mlp.b_out"] = model.params[f"transformer/layer_{l}/mlp/linear_2"]["b"]
+        sd[f"blocks.{layer_index}.mlp.W_in"] = model.params[f"transformer/layer_{layer_index}/mlp/linear_1"]["w"]
+        sd[f"blocks.{layer_index}.mlp.b_in"] = model.params[f"transformer/layer_{layer_index}/mlp/linear_1"]["b"]
+        sd[f"blocks.{layer_index}.mlp.W_out"] = model.params[f"transformer/layer_{layer_index}/mlp/linear_2"]["w"]
+        sd[f"blocks.{layer_index}.mlp.b_out"] = model.params[f"transformer/layer_{layer_index}/mlp/linear_2"]["b"]
     print(sd.keys())
 
     # Convert weights to tensors and load into the tl_model
@@ -217,19 +217,19 @@ def get_tracr_model_input_and_tl_model(task: Literal["reverse", "proportion"], d
 
     logits, cache = tl_model.run_with_cache(input_tokens_tensor)
 
-    for layer in range(tl_model.cfg.n_layers):
+    for layer_index in range(tl_model.cfg.n_layers):
         print(
-            f"Layer {layer} Attn Out Equality Check:",
+            f"Layer {layer_index} Attn Out Equality Check:",
             np.isclose(
-                cache["attn_out", layer].detach().cpu().numpy(),
-                np.array(out.layer_outputs[2 * layer]),
+                cache["attn_out", layer_index].detach().cpu().numpy(),
+                np.array(out.layer_outputs[2 * layer_index]),
             ).all(),
         )
         print(
-            f"Layer {layer} MLP Out Equality Check:",
+            f"Layer {layer_index} MLP Out Equality Check:",
             np.isclose(
-                cache["mlp_out", layer].detach().cpu().numpy(),
-                np.array(out.layer_outputs[2 * layer + 1]),
+                cache["mlp_out", layer_index].detach().cpu().numpy(),
+                np.array(out.layer_outputs[2 * layer_index + 1]),
             ).all(),
         )
 

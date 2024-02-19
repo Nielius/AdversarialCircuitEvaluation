@@ -110,7 +110,7 @@ class MaskedRunner:
         self,
         input_embedded: Float[torch.Tensor, "batch pos"],
         dummy_input: Integer[torch.Tensor, "batch pos"],
-        coefficients: Num[torch.Tensor, "batch"],
+        coefficients: Num[torch.Tensor, " batch"],
         patch_input: Num[torch.Tensor, "batch pos"],
         edges_to_ablate: list[Edge],
     ) -> Float[torch.Tensor, "1 pos vocab"]:

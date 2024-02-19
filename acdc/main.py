@@ -59,6 +59,7 @@ except Exception:
 # <h2>Imports etc</h2>
 
 # %%
+import datetime
 import gc
 import os
 
@@ -393,7 +394,6 @@ exp = TLACDCExperiment(
 
 # %%
 
-import datetime
 
 exp_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

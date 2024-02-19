@@ -14,8 +14,10 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import plotly
 import plotly.graph_objects as go
 import torch
+from plotly.subplots import make_subplots
 from tqdm import tqdm
 
 import wandb
@@ -237,7 +239,7 @@ if False:
                     histories.append(history)
                     try:
                         cur_lambda = float(run.name.split("_")[2])
-                    except:
+                    except:  # noqa: E722
                         print(run.name, "didn't have lambda shit")
                         continue
 
@@ -260,7 +262,7 @@ if False:
 
     final_edges = torch.cat([torch.tensor(final_edges), log_edges])
     final_metric = torch.cat([torch.tensor(final_metric), kls])
-    names = names + [f"lambda={l}" for l in lambdas]
+    names = names + [f"lambda={lambda_instance}" for lambda_instance in lambdas]
     thresholds = thresholds + [-1.0 for _ in lambdas]
 
 # %%
@@ -304,8 +306,6 @@ fig.add_trace(
 
 # %%
 
-import plotly
-
 # fname = "media_zero_json.json"
 # fname = "better_zero.json"
 fname = "media/corrupted.json"
@@ -321,7 +321,6 @@ if False:
 
 # %%
 
-import plotly
 
 fname = "better_random.json"
 fig3 = plotly.io.read_json(fname)
@@ -377,7 +376,6 @@ run = api.run("acdcremix/pareto-subnetwork-probing/runs/2zzctq6x")
 path = "media/plotly/number_of_nodes_0_fa4f23a7d736607e9e9a.plotly.json"
 
 # get the data
-import plotly
 
 json_data_as_string = run.file(path).download(replace=True).read()
 subnetwork_prob_fig = plotly.io.read_json(path)
@@ -390,7 +388,6 @@ subnetwork_prob_fig.data[0]["showlegend"] = True
 subnetwork_prob_fig.update_layout(legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
 subnetwork_prob_fig.show()
 # %%
-from plotly.subplots import make_subplots
 
 combined_fig = make_subplots(specs=[[{"secondary_y": True}]])
 combined_fig.add_trace(fig.data[0], secondary_y=False)
@@ -444,9 +441,8 @@ combined_fig.update_layout(title_text="Induction results")
 # %% [markdown]
 # Unrelated to the above, this is for seeing how big direct effects are on the output
 
-import plotly.graph_objects as go
 
-ies = exp._nodes.i_names["final.inp"].incoming_effect_sizes
+ies = exp._nodes.i_names["final.inp"].incoming_effect_sizes  # noqa: F821
 fig = go.Figure()
 labels = [i.name for i in ies]
 vals = [v for v in ies.values()]

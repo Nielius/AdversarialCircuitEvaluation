@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # %%
 
 from IPython import get_ipython
@@ -6,6 +7,7 @@ ipython = get_ipython()
 if ipython is not None:
     ipython.magic("%load_ext autoreload")
     ipython.magic("%autoreload 2")
+
 import json
 from pathlib import Path
 

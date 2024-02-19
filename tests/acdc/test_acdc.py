@@ -2,7 +2,6 @@
 import gc
 from collections import OrderedDict
 from copy import deepcopy
-from functools import *
 from pathlib import Path
 
 import pytest

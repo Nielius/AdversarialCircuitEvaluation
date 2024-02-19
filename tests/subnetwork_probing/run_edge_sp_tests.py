@@ -81,8 +81,8 @@ def test_reverse_gt_correct():
         # TODO deal with ci, pi
         masked_model._mask_logits_dict[c].data[p_index] = 5
 
-    n_active_logits = sum((l >= 0).sum().item() for l in masked_model._mask_logits_dict.values())
-    n_total_logits = sum(l.numel() for l in masked_model._mask_logits_dict.values())
+    n_active_logits = sum((logit >= 0).sum().item() for logit in masked_model._mask_logits_dict.values())
+    n_total_logits = sum(logit.numel() for logit in masked_model._mask_logits_dict.values())
     print(f"Model has {n_active_logits}/{n_total_logits} active logits and {len(gt_edges)} ground truth edges")
 
     # Run the model once without hooks

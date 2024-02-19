@@ -66,7 +66,7 @@ class CircuitPerformanceDistributionExperiment:
     def calculate_circuit_performance_for_large_sample(
         self,
         circuit: list[Edge],
-    ) -> Float[torch.Tensor, "batch"]:
+    ) -> Float[torch.Tensor, " batch"]:
         """
         Run and calculate an individual circuit performance metrics for each input in `test_data`.
         This circuit performance metric compares the output for the circuit with the output for the full model, and it
@@ -106,7 +106,7 @@ class CircuitPerformanceDistributionExperiment:
 @dataclass
 class CircuitPerformanceDistributionResults:
     experiment_name: AdvOptTaskName
-    metrics: dict[str, Float[torch.Tensor, "batch"]]
+    metrics: dict[str, Float[torch.Tensor, " batch"]]
     topk_most_adversarial_values: list[float]
     topk_most_adversarial_input: list[str]
 

@@ -280,7 +280,7 @@ def filter_nodes(nodes: set[tuple[str, TorchIndex]]) -> set[tuple[str, TorchInde
                 all_nodes.add(
                     (f"blocks.{node[0].split()[1]}.hook_mlp_out", node[1])
                 )  # assume that we're not doing any neuron or positional stuff
-            except:
+            except:  # noqa: E722
                 pass
             all_nodes.remove(node)
         for letter in "qkv":
@@ -399,18 +399,6 @@ def get_edge_stats(ground_truth, recovered):
     return counts
 
 
-def false_positive_rate(ground_truth, recovered, verbose=False):
-    return get_stat(ground_truth, recovered, mode="false positive", verbose=verbose)
-
-
-def false_negative_rate(ground_truth, recovered, verbose=False):
-    return get_stat(ground_truth, recovered, mode="false negative", verbose=verbose)
-
-
-def true_positive_stat(ground_truth, recovered, verbose=False):
-    return get_stat(ground_truth, recovered, mode="true positive", verbose=verbose)
-
-
 # ----------------------------------
 # Resetting networks; Appendix
 # ----------------------------------
@@ -517,7 +505,7 @@ def get_longest_float(s, end_cutoff=None):
     for i in range(len(s) - 1, -1, -1):
         try:
             ans = float(s[i:end_cutoff])
-        except:
+        except:  # noqa: E722
             pass
         else:
             ans = float(s[i:end_cutoff])

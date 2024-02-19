@@ -79,7 +79,7 @@ class TorchIndex:
                 continue
             else:
                 assert isinstance(arg, list)
-                assert all([type(x) == int for x in arg])
+                assert all([type(x) == int for x in arg])  # noqa: E721
 
         # make an object that can be indexed into a tensor
         self.as_index = tuple([slice(None) if x is None else x for x in list_of_things_in_tuple])
@@ -106,7 +106,7 @@ class TorchIndex:
                 ret += ", "
             if x is None:
                 ret += ":" if use_actual_colon else "COLON"
-            elif type(x) == int:
+            elif isinstance(x, int):
                 ret += str(x)
             else:
                 raise NotImplementedError(x)
