@@ -63,8 +63,6 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
 
         self.ablation_cache = ActivationCache({}, self.model)
         self.forward_cache = ActivationCache({}, self.model)
-        self.a_cache_tensor = None
-        self.f_cache_tensor = None
         self.cache_indices_dict = {}  # Converts a hook name to an integer representing how far to index?
         # Hyperparameters
         self.beta = beta
@@ -154,12 +152,6 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         center = self.beta * math.log(-self.gamma / self.zeta)
         per_parameter_loss = [torch.sigmoid(scores - center).mean() for scores in self.mask_logits]
         return torch.mean(torch.stack(per_parameter_loss))
-
-    @staticmethod
-    def make_4d(x):
-        if x.ndim == 3:
-            return x.unsqueeze(2)
-        return x
 
     def _calculate_and_store_zero_ablation_cache(self) -> None:
         """Caches zero for every possible mask point."""
@@ -257,11 +249,6 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
 
     def caching_hook(self, hook_point_out: torch.Tensor, hook: HookPoint):
         self.forward_cache.cache_dict[hook.name] = hook_point_out
-        start, end = self.cache_indices_dict[hook.name]
-        if self.f_cache_tensor is None:
-            batch, seq, d_model = hook_point_out.shape
-            self.f_cache_tensor = torch.zeros((batch, seq, self.n_units_so_far, d_model), device=self.device)
-        self.f_cache_tensor[:, :, start:end, :] = self.make_4d(hook_point_out)
         return hook_point_out
 
     def fwd_hooks(self) -> List[Tuple[str, Callable]]:
