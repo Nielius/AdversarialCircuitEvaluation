@@ -17,6 +17,7 @@ jobs:
           command: sudo apt-get update && sudo apt-get install -y graphviz libgraphviz-dev
       - python/install-packages:
           pkg-manager: poetry
+          args: --with dev
       - run:
           name: Run not-slow tests
           command: poetry run pytest -m "not slow" --junitxml=junit.xml || ((($? == 5)) && echo 'Did not find any tests to run.')
@@ -24,6 +25,17 @@ jobs:
       # - run:
       #     name: Run slow tests
       #     command: poetry run pytest -s -m "slow" --junitxml=junit.xml || ((($? == 5)) && echo 'Did not find any tests to run.')
+      - run:
+          name: Lint (ruff)
+          # Ignoring the imports, because for some reason it's giving me different results locally than in CI
+          command: poetry run ruff --version && poetry run ruff check . --verbose --ignore I
+      - run:
+          name: Format check (ruff)
+          command: poetry run ruff format --check .
+      # Typechecking to be enabled in the future
+      # - run:
+      #     name: Typecheck (pyright)
+      #     command: pyright .
       - store_test_results:
           path: junit.xml
   deploy:

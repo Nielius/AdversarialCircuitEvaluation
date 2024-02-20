@@ -64,8 +64,8 @@ extend-exclude = ['submodules/']
 [tool.ruff.lint]
 # Enable the isort rules.
 extend-select = ["I"]
-ignore = ["F722"]  # the jaxtyping annotations are F722
+ignore = ["F722"]  # the jaxtyping annotations cause F722
 
 [tool.pyright]
-exclude = ["subnetwork_probing/transformer_lens"]
+exclude = ["subnetwork_probing/transformer_lens", "submodules"]
 
