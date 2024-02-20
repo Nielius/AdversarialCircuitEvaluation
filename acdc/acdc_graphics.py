@@ -94,7 +94,7 @@ def build_random_colorscheme_for_correspondence(
     correspondence: TLACDCCorrespondence,
     colorscheme: str = "Pastel2",
     show_full_index=True,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     colors = {}
     for node in correspondence.nodes_list():
         colors[get_pretty_graph_name_for_interp_node(node, show_full_index=show_full_index)] = generate_random_color(

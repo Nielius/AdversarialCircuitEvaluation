@@ -3,7 +3,7 @@ import collections
 import gc
 import math
 import random
-from typing import Callable, ContextManager, Dict, List, Optional, Tuple
+from typing import Callable, ContextManager, List, Optional, Tuple
 
 import torch
 from tqdm import tqdm
@@ -107,7 +107,7 @@ class NodeLevelMaskedTransformer(torch.nn.Module):
     cache: ActivationCache
     mask_logits: torch.nn.ParameterList
     mask_logits_names: List[str]
-    _mask_logits_dict: Dict[str, torch.nn.Parameter]
+    _mask_logits_dict: dict[str, torch.nn.Parameter]
 
     def __init__(self, model, beta=2 / 3, gamma=-0.1, zeta=1.1, mask_init_p=0.9):
         super().__init__()

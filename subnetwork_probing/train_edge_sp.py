@@ -91,7 +91,7 @@ def train_edge_sp(
             )
 
     # one parameter per thing that is masked
-    mask_params = list(p for p in masked_model.mask_logits if p.requires_grad)
+    mask_params = list(p for p in masked_model.mask_parameter_list if p.requires_grad)
     # parameters for the probe (we don't use a probe)
     model_params = list(p for p in masked_model.model.parameters() if p.requires_grad)
     assert len(model_params) == 0, ("MODEL should be empty", model_params)

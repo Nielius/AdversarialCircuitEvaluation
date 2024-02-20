@@ -81,6 +81,10 @@ for i in range(settings.num_epochs):
     #     convex_coefficients.divide /= convex_coefficients / convex_coefficients.sum()
     # convex_coefficients.requires_grad = True
 
+    # Which optimizer would be good for this? Try Adam or AdamW for now
+    # Normalization of the coefficients?
+    # Try different initizalizations of the coefficients, see if it's sensitive to that
+    # maybe just set all to zero in initialization?
     optimizer.zero_grad()
     circuit_output = experiment_data.masked_runner.run_with_linear_combination(
         input_embedded=base_input_embedded,

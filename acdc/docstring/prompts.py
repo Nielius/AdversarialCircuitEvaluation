@@ -8,7 +8,7 @@ See here https://github.com/jettmayzner/mi_utils_public
 
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import torch
 from torchtyping import TensorType as TT
@@ -712,7 +712,7 @@ common_single_token_nouns = [
 @dataclass
 class Prompt:
     clean_prompt: str
-    corrupt_prompt: Union[str, Dict[str, str]]
+    corrupt_prompt: Union[str, dict[str, str]]
     correct_answers: List[str]
     wrong_answers: List[str]
 

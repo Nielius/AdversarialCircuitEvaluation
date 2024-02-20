@@ -6,7 +6,7 @@ from argparse import Namespace
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Dict, List, Literal, Optional, Tuple, TypeVar, Union
+from typing import Callable, List, Literal, Optional, Tuple, TypeVar, Union
 
 import torch
 from transformer_lens.HookedTransformer import HookedTransformer
@@ -26,7 +26,7 @@ from acdc.TLACDCInterpNode import TLACDCInterpNode
 
 # some types that will help
 TorchIndexHashableTuple = Tuple[Union[None, slice], ...]
-Subgraph = Dict[
+Subgraph = dict[
     Tuple[str, TorchIndexHashableTuple, str, TorchIndexHashableTuple], bool
 ]  # an alias for loading and saving from WANDB (primarily)
 

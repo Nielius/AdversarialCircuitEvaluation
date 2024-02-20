@@ -41,7 +41,7 @@ class MaskedRunner:
         self._parent_index_per_child = {}
         self._indexed_parents_per_child = {}
 
-        for child, all_parents in self.masked_transformer.parent_node_names.items():
+        for child, all_parents in self.masked_transformer.hook_point_to_parents.items():
             # we expand the list of all_parents into a list of all indexed parents, so that we can give
             # each of an index
             all_indexed_parents: list[IndexedHookPointName] = list(
@@ -57,18 +57,18 @@ class MaskedRunner:
     def _freeze_all_masks(self):
         """In the MaskedTransformer, every mask is a parameter. In this case, however,
         we only want to run the model with fixed masks, so we freeze all the masks."""
-        for value in self.masked_transformer._mask_logits_dict.values():
+        for value in self.masked_transformer._mask_parameter_dict.values():
             value.requires_grad = False
 
     def _set_all_masks_to_pos_infty(self):
-        for parameter in self.masked_transformer._mask_logits_dict.values():
+        for parameter in self.masked_transformer._mask_parameter_dict.values():
             parameter.data.fill_(float("inf"))
 
     def _set_mask_for_edge(self, child: IndexedHookPointName, parent: IndexedHookPointName, value: float) -> None:
         parent_index = self._parent_index_per_child[(child.hook_name, parent)]
         # self._mask_logits_dict is dict[HookPointName of child, Num[torch.nn.Parameter, "parent (IndexedHookPoint), TorchIndex of child"]
         # todo: I think child.index.as_index[-1] shows that we're not using the right abstraction here; or maybe it doesn't?
-        self.masked_transformer._mask_logits_dict[child.hook_name][parent_index][child.index.as_index[-1]] = value
+        self.masked_transformer._mask_parameter_dict[child.hook_name][parent_index][child.index.as_index[-1]] = value
 
     @cached_property
     def all_ablatable_edges(self) -> set[Edge]:

@@ -1,5 +1,6 @@
+import logging
 import math
-from typing import Callable, ContextManager, Dict, List, Tuple, TypeAlias
+from typing import Callable, ContextManager, List, Tuple, TypeAlias
 
 import torch
 from einops import rearrange
@@ -9,9 +10,89 @@ from transformer_lens import ActivationCache, HookedTransformer
 from transformer_lens.hook_points import HookPoint
 
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
-from acdc.TLACDCEdge import TorchIndex
+from acdc.TLACDCEdge import HookPointName, TorchIndex
+
+logger = logging.getLogger(__name__)
 
 PatchData: TypeAlias = Num[torch.Tensor, "batch pos"] | None  # use None if you want zero ablation
+
+
+def create_mask_parameters_and_forward_cache_hook_points(
+    use_pos_embed: bool, num_heads: int, n_layers: int, device: str, mask_init_constant: float, attn_only: bool
+):
+    """
+    Given the relevant configuration for a transformer, this function produces two things:
+
+    1. The parameters for the masks, in a dict that maps a hook point name to its mask parameter
+    2. The hook points that need to be cached on a forward pass.
+
+    TODO: why don't we keep a friggin dict or something to keep track of how each IndexedHookPoint maps to an index?
+    basically dict[IndexedHookPoint, int] or something like that
+    """
+
+    ordered_forward_cache_hook_points: list[HookPointName] = []
+
+    # we need to track the number of outputs so far, because this will be the number of parents
+    # of all the following units.
+    num_output_units_so_far = 0
+
+    hook_point_to_parents: dict[HookPointName, list[HookPointName]] = {}
+    mask_parameter_list = torch.nn.ParameterList()
+    mask_parameter_dict: dict[HookPointName, torch.nn.Parameter] = {}
+
+    # Implementation details:
+    #
+    # We distinguish hook points that are used for input, and hook points that are used for output.
+    #
+    # The input hook points are the ones that get mask parameters.
+    # The output hook points are the ones that we cache on a forward pass, so that we can later mask them.
+
+    def setup_output_hook_point(mask_name: str, num_instances: int):
+        ordered_forward_cache_hook_points.append(mask_name)
+
+        nonlocal num_output_units_so_far
+        num_output_units_so_far += num_instances
+
+    def setup_input_hook_point(mask_name: str, num_instances: int):
+        """
+        Adds a mask logit for the given mask name and parent nodes
+        Parent nodes are (attention, MLP)
+
+        We need to add a parameter to mask the input to these units
+        """
+        nonlocal num_output_units_so_far
+        hook_point_to_parents[mask_name] = ordered_forward_cache_hook_points[:]  # everything that has come before
+
+        new_mask_parameter = torch.nn.Parameter(
+            torch.full((num_output_units_so_far, num_instances), mask_init_constant, device=device)
+        )
+        mask_parameter_list.append(new_mask_parameter)
+        mask_parameter_dict[mask_name] = new_mask_parameter
+
+    for embedding_hook_point in ["hook_embed", "hook_pos_embed"] if use_pos_embed else ["blocks.0.hook_resid_pre"]:
+        setup_output_hook_point(embedding_hook_point, 1)
+
+    # Add mask logits for ablation cache
+    # Mask logits have a variable dimension depending on the number of in-edges (increases with layer)
+    for layer_i in range(n_layers):
+        for q_k_v in ["q", "k", "v"]:
+            setup_input_hook_point(mask_name=f"blocks.{layer_i}.hook_{q_k_v}_input", num_instances=num_heads)
+
+        setup_output_hook_point(f"blocks.{layer_i}.attn.hook_result", num_heads)
+
+        if not attn_only:
+            setup_input_hook_point(mask_name=f"blocks.{layer_i}.hook_mlp_in", num_instances=1)
+            setup_output_hook_point(f"blocks.{layer_i}.hook_mlp_out", num_instances=1)
+
+    # why does this get a mask? isn't it pointless to mask this?
+    setup_input_hook_point(mask_name=f"blocks.{n_layers - 1}.hook_resid_post", num_instances=1)
+
+    # TODO: remove this unnecessary test; move this to test
+    for parent_list in hook_point_to_parents.values():
+        for parent in parent_list:
+            assert parent in ordered_forward_cache_hook_points, f"{parent} not in forward cache names"
+
+    return ordered_forward_cache_hook_points, hook_point_to_parents, mask_parameter_list, mask_parameter_dict
 
 
 class EdgeLevelMaskedTransformer(torch.nn.Module):
@@ -23,13 +104,25 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
       of several residual stream terms; ablated edges are looked up from `ablation_cache`
       and non-ablated edges from `forward_cache`, then the sum is taken.
     - `caching_hook`s save the output of a node to `forward_cache` for use in later layers.
+
+    Qs:
+
+    - what are the names of the mask parameters in the mask parameter dict? We just use the names of the hook point
+    - how are all the mask params laid out as a tensor?
+    - does everything use the HookName as a kind ...? if so, use that in types
     """
 
     model: HookedTransformer
     ablation_cache: ActivationCache
     forward_cache: ActivationCache
-    mask_logits: torch.nn.ParameterList
-    _mask_logits_dict: Dict[str, torch.nn.Parameter]
+    hook_point_to_parents: dict[HookPointName, list[HookPointName]]  # the parents of each hook point
+    mask_parameter_list: torch.nn.ParameterList  # the parameters that we use to mask the input to each node
+    _mask_parameter_dict: dict[
+        str, torch.nn.Parameter
+    ]  # same parameters, but indexed by the hook point that they are applied to
+    forward_cache_hook_points: list[
+        HookPointName
+    ]  # the hook points where we need to cache the output on a forward pass
 
     def __init__(
         self,
@@ -47,8 +140,6 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         self.model = model
         self.n_heads = model.cfg.n_heads
         self.n_mlp = 0 if model.cfg.attn_only else 1
-        self.mask_logits = torch.nn.ParameterList()
-        self._mask_logits_dict = {}
         self.no_ablate = no_ablate
         if no_ablate:
             print("WARNING: no_ablate is True, this is for testing only")
@@ -56,14 +147,8 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         self.use_pos_embed = use_pos_embed
         self.verbose = verbose
 
-        # Stores the cache keys that correspond to each mask,
-        # e.g. ...1.hook_mlp_in -> ["blocks.0.attn.hook_result", "blocks.0.hook_mlp_out", "blocks.1.attn.hook_result"]
-        # Logits are attention in-edges, then MLP in-edges
-        self.parent_node_names: Dict[str, list[str]] = {}
-
         self.ablation_cache = ActivationCache({}, self.model)
         self.forward_cache = ActivationCache({}, self.model)
-        self.cache_indices_dict = {}  # Converts a hook name to an integer representing how far to index?
         # Hyperparameters
         self.beta = beta
         self.gamma = gamma
@@ -72,85 +157,40 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
 
         # Copied from subnetwork probing code. Similar to log odds (but not the same)
         p = (self.mask_init_p - self.gamma) / (self.zeta - self.gamma)
-        self.mask_init_constant = math.log(p / (1 - p))
 
         model.cfg.use_hook_mlp_in = True  # We need to hook the MLP input to do subnetwork probing
 
-        self.embeds = ["hook_embed", "hook_pos_embed"] if self.use_pos_embed else ["blocks.0.hook_resid_pre"]
-
-        self.forward_cache_names = self.embeds[:]
-        self.cache_indices_dict = {name: (i, i + 1) for i, name in enumerate(self.forward_cache_names)}
-        self.n_units_so_far = len(self.embeds)
-        # Add mask logits for ablation cache
-        # Mask logits have a variable dimension depending on the number of in-edges (increases with layer)
-        for layer_i in range(model.cfg.n_layers):
-            # QKV: in-edges from all previous layers
-            for q_k_v in ["q", "k", "v"]:
-                self._setup_mask_logits(
-                    mask_name=f"blocks.{layer_i}.hook_{q_k_v}_input",
-                    out_dim=self.n_heads,
-                )
-
-            self.forward_cache_names.append(f"blocks.{layer_i}.attn.hook_result")
-            self.cache_indices_dict[f"blocks.{layer_i}.attn.hook_result"] = (
-                self.n_units_so_far,
-                self.n_units_so_far + self.n_heads,
-            )
-            self.n_units_so_far += self.n_heads
-
-            # MLP: in-edges from all previous layers and current layer's attention heads
-            if not model.cfg.attn_only:
-                self._setup_mask_logits(mask_name=f"blocks.{layer_i}.hook_mlp_in", out_dim=1)
-
-                self.forward_cache_names.append(f"blocks.{layer_i}.hook_mlp_out")
-                self.cache_indices_dict[f"blocks.{layer_i}.hook_mlp_out"] = (
-                    self.n_units_so_far,
-                    self.n_units_so_far + 1,
-                )
-                self.n_units_so_far += 1
-
-        self._setup_mask_logits(mask_name=f"blocks.{model.cfg.n_layers - 1}.hook_resid_post", out_dim=1)
-
-        print(self.forward_cache_names, self.parent_node_names)
-        for ckl in self.parent_node_names.values():
-            for name in ckl:
-                assert name in self.forward_cache_names, f"{name} not in forward cache names"
+        (
+            self.forward_cache_hook_points,
+            self.hook_point_to_parents,
+            self.mask_parameter_list,
+            self._mask_parameter_dict,
+        ) = create_mask_parameters_and_forward_cache_hook_points(
+            use_pos_embed=self.use_pos_embed,
+            num_heads=self.n_heads,
+            n_layers=model.cfg.n_layers,
+            device=self.device,
+            mask_init_constant=math.log(p / (1 - p)),
+            attn_only=model.cfg.attn_only,
+        )
 
     @property
     def mask_logits_names(self):
-        return self._mask_logits_dict.keys()
+        return self._mask_parameter_dict.keys()
 
-    def _setup_mask_logits(self, mask_name, out_dim):
-        """
-        Adds a mask logit for the given mask name and parent nodes
-        Parent nodes are (attention, MLP)
-        """
-        in_dim = self.n_units_so_far
-        self.parent_node_names[mask_name] = self.forward_cache_names[:]
-        self.mask_logits.append(
-            torch.nn.Parameter(torch.full((in_dim, out_dim), self.mask_init_constant, device=self.device))
-        )
-        self._mask_logits_dict[mask_name] = self.mask_logits[-1]
-
-    def sample_mask(self, mask_name) -> torch.Tensor:
+    def sample_mask(self, mask_name: str) -> torch.Tensor:
         """Samples a binary-ish mask from the mask_scores for the particular `mask_name` activation"""
-        mask_scores = self._mask_logits_dict[mask_name]
-        uniform_sample = torch.zeros_like(mask_scores, requires_grad=False).uniform_().clamp_(0.0001, 0.9999)
-        s = torch.sigmoid((uniform_sample.log() - (1 - uniform_sample).log() + mask_scores) / self.beta)
+        mask_parameters = self._mask_parameter_dict[mask_name]
+        uniform_sample = torch.zeros_like(mask_parameters, requires_grad=False).uniform_().clamp_(0.0001, 0.9999)
+        s = torch.sigmoid((uniform_sample.log() - (1 - uniform_sample).log() + mask_parameters) / self.beta)
         s_bar = s * (self.zeta - self.gamma) + self.gamma
         mask = s_bar.clamp(min=0.0, max=1.0)
-        # print(f"Displaying grad tree of {mask_name}")
-        # def get_grad_tree(f):
-        #     if f is None: return str(f)
-        #     return f"{f} -> ({', '.join(get_grad_tree(tup[0]) for tup in f.next_functions)})"
-        # a = mask.grad_fn
-        # print(get_grad_tree(a))
 
         return mask
 
     def regularization_loss(self) -> torch.Tensor:
         center = self.beta * math.log(-self.gamma / self.zeta)
-        per_parameter_loss = [torch.sigmoid(scores - center).mean() for scores in self.mask_logits]
+        per_parameter_loss = [torch.sigmoid(scores - center).mean() for scores in self.mask_parameter_list]
         return torch.mean(torch.stack(per_parameter_loss))
 
     def _calculate_and_store_zero_ablation_cache(self) -> None:
@@ -168,7 +208,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         with torch.no_grad():
             model_out, self.ablation_cache = self.model.run_with_cache(
                 patch_data,
-                names_filter=lambda name: name in self.forward_cache_names,
+                names_filter=lambda name: name in self.forward_cache_hook_points,
                 return_cache_object=True,
             )
 
@@ -200,7 +240,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         return torch.cat(result, dim=2)
 
     def compute_weighted_values(self, hook: HookPoint):
-        parent_names = self.parent_node_names[hook.name]
+        parent_names = self.hook_point_to_parents[hook.name]
         ablation_values = self.get_activation_values(parent_names, self.ablation_cache)  # b s i d
         forward_values = self.get_activation_values(parent_names, self.forward_cache)  # b s i d
         mask = self.sample_mask(hook.name)  # in_edges, nodes_per_mask, ...
@@ -253,7 +293,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
 
     def fwd_hooks(self) -> List[Tuple[str, Callable]]:
         return [(n, self.activation_mask_hook) for n in self.mask_logits_names] + [
-            (n, self.caching_hook) for n in self.forward_cache_names
+            (n, self.caching_hook) for n in self.forward_cache_hook_points
         ]
 
     def with_fwd_hooks_and_new_ablation_cache(self, patch_data: PatchData) -> ContextManager[HookedTransformer]:
@@ -269,14 +309,14 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
 
     def num_edges(self):
         values = []
-        for name, mask in self._mask_logits_dict.items():
+        for name, mask in self._mask_parameter_dict.items():
             mask_value = self.sample_mask(name)
             values.extend(mask_value.flatten().tolist())
         values = torch.tensor(values)
         return (values > 0.5).sum().item()
 
     def num_params(self):
-        return sum(p.numel() for p in self.mask_logits)
+        return sum(p.numel() for p in self.mask_parameter_list)
 
     def get_edge_level_correspondence_from_masks(self, use_pos_embed: bool = None) -> TLACDCCorrespondence:
         if use_pos_embed is None:
@@ -289,12 +329,12 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
                 return [TorchIndex((None,))]
             return [TorchIndex((None, None, i)) for i in range(self.n_heads)]
 
-        for child, mask_logits in self._mask_logits_dict.items():
+        for child, mask_logits in self._mask_parameter_dict.items():
             # Sample mask for this child
             sampled_mask = self.sample_mask(child)
             # print(f"sampled mask for {child} has shape {sampled_mask.shape}")
             mask_row = 0
-            for parent in self.parent_node_names[child]:
+            for parent in self.hook_point_to_parents[child]:
                 for parent_index in indexes(parent):
                     for mask_col, child_index in enumerate(indexes(child)):
                         # print(f"Setting edge {child} {child_index} <- {parent} {parent_index} to {mask_row, mask_col}")
