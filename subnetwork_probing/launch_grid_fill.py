@@ -1,5 +1,5 @@
 import random
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 
@@ -39,7 +39,7 @@ def main(TASKS: list[str], job: Optional[KubernetesJob], name: str, testing: boo
     seed = 1507014021
     random.seed(seed)
 
-    commands: List[List[str]] = []
+    commands: list[list[str]] = []
     for reset_network in [int(reset_networks)]:
         for zero_ablation in [0, 1]:
             for task in TASKS:

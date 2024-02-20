@@ -8,7 +8,7 @@ import copy
 import random
 import re
 import warnings
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 import torch
@@ -347,7 +347,7 @@ def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
     """_summary_
 
     Args:
-        prompts (List[D]): _description_
+        prompts (list[D]): _description_
         flip (tuple, optional): First element is the string to be replaced, Second is what to replace with. Defaults to ("S2", "IO").
 
     Returns:
@@ -662,7 +662,7 @@ def flip_names(ioi_prompts):
 class IOIDataset:
     def __init__(
         self,
-        prompt_type: Union[str, List[str]],  # if list, then it will be a list of templates
+        prompt_type: Union[str, list[str]],  # if list, then it will be a list of templates
         N=500,
         tokenizer=None,
         prompts=None,

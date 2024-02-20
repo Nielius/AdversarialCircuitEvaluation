@@ -3,7 +3,7 @@ import collections
 import gc
 import math
 import random
-from typing import Callable, ContextManager, List, Optional, Tuple
+from typing import Callable, ContextManager, List, Optional
 
 import torch
 from tqdm import tqdm
@@ -29,11 +29,11 @@ from acdc.tracr_task.utils import get_all_tracr_things
 
 def iterative_correspondence_from_mask(
     model: HookedTransformer,
-    nodes_to_mask: List[TLACDCInterpNode],  # Can be empty
+    nodes_to_mask: list[TLACDCInterpNode],  # Can be empty
     use_pos_embed: bool = False,
     corr: Optional[TLACDCCorrespondence] = None,
     head_parents: Optional[List] = None,
-) -> Tuple[TLACDCCorrespondence, List]:
+) -> tuple[TLACDCCorrespondence, List]:
     """Given corr has some nodes masked, also mask the nodes_to_mask"""
 
     assert (corr is None) == (
@@ -95,7 +95,7 @@ def iterative_correspondence_from_mask(
     return corr, head_parents
 
 
-def log_plotly_bar_chart(x: List[str], y: List[float]) -> None:
+def log_plotly_bar_chart(x: list[str], y: list[float]) -> None:
     import plotly.graph_objects as go
 
     fig = go.Figure(data=[go.Bar(x=x, y=y)])
@@ -106,7 +106,7 @@ class NodeLevelMaskedTransformer(torch.nn.Module):
     model: HookedTransformer
     cache: ActivationCache
     mask_logits: torch.nn.ParameterList
-    mask_logits_names: List[str]
+    mask_logits_names: list[str]
     _mask_logits_dict: dict[str, torch.nn.Parameter]
 
     def __init__(self, model, beta=2 / 3, gamma=-0.1, zeta=1.1, mask_init_p=0.9):
@@ -184,7 +184,7 @@ class NodeLevelMaskedTransformer(torch.nn.Module):
         out = mask * hook_point_out + (1 - mask) * self.cache[hook.name]
         return out
 
-    def fwd_hooks(self) -> List[Tuple[str, Callable]]:
+    def fwd_hooks(self) -> list[tuple[str, Callable]]:
         return [(n, self.activation_mask_hook) for n in self.mask_logits_names]
 
     def with_fwd_hooks(self) -> ContextManager[HookedTransformer]:

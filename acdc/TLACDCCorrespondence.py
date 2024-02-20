@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Iterator, List, MutableMapping
+from typing import Iterator, MutableMapping
 
 # these introduce several important classes !!!
 from acdc.acdc_utils import OrderedDefaultdict, make_nd_dict
@@ -37,7 +37,7 @@ class TLACDCCorrespondence:
     def first_node(self):
         return self.nodes[list(self.nodes.keys())[0]][list(self.nodes[list(self.nodes.keys())[0]].keys())[0]]
 
-    def nodes_list(self) -> List[TLACDCInterpNode]:
+    def nodes_list(self) -> list[TLACDCInterpNode]:
         """Concatenate all nodes in the graph"""
         return [node for by_index_list in self.nodes.values() for node in by_index_list.values()]
 
@@ -127,7 +127,7 @@ class TLACDCCorrespondence:
     def setup_from_model(cls, model, use_pos_embed=False) -> "TLACDCCorrespondence":
         correspondence = cls()
 
-        downstream_residual_nodes: List[TLACDCInterpNode] = []
+        downstream_residual_nodes: list[TLACDCInterpNode] = []
         logits_node = TLACDCInterpNode(
             name=f"blocks.{model.cfg.n_layers-1}.hook_resid_post",
             index=TorchIndex([None]),
@@ -175,7 +175,7 @@ class TLACDCCorrespondence:
 
                 downstream_residual_nodes.append(cur_mlp_input)
 
-            new_downstream_residual_nodes: List[TLACDCInterpNode] = []
+            new_downstream_residual_nodes: list[TLACDCInterpNode] = []
 
             # connect attention heads
             for head_idx in range(model.cfg.n_heads - 1, -1, -1):

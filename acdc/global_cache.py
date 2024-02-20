@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Literal, Tuple, Union
+from typing import Literal, Union
 
 import torch
 
@@ -7,7 +7,7 @@ import torch
 class GlobalCache:  # this dict stores the activations from the forward pass
     """Class for managing several caches for passing activations around"""
 
-    def __init__(self, device: Union[str, Tuple[str, str]] = "cuda"):
+    def __init__(self, device: Union[str, tuple[str, str]] = "cuda"):
         # TODO find a way to make the device propagate when we to .to on the p
         # TODO make it essential first key is a str, second a TorchIndex, third a str
 
@@ -16,7 +16,7 @@ class GlobalCache:  # this dict stores the activations from the forward pass
 
         self.online_cache = OrderedDict()
         self.corrupted_cache = OrderedDict()
-        self.device: Tuple[str, str] = (device, device)
+        self.device: tuple[str, str] = (device, device)
 
     def clear(self, just_first_cache=False):
         if not just_first_cache:

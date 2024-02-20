@@ -6,7 +6,7 @@ from argparse import Namespace
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, List, Literal, Optional, Tuple, TypeVar, Union
+from typing import Callable, Literal, Optional, TypeVar, Union
 
 import torch
 from transformer_lens.HookedTransformer import HookedTransformer
@@ -25,9 +25,9 @@ from acdc.TLACDCEdge import (
 from acdc.TLACDCInterpNode import TLACDCInterpNode
 
 # some types that will help
-TorchIndexHashableTuple = Tuple[Union[None, slice], ...]
+TorchIndexHashableTuple = tuple[Union[None, slice], ...]
 Subgraph = dict[
-    Tuple[str, TorchIndexHashableTuple, str, TorchIndexHashableTuple], bool
+    tuple[str, TorchIndexHashableTuple, str, TorchIndexHashableTuple], bool
 ]  # an alias for loading and saving from WANDB (primarily)
 
 T = TypeVar("T")
@@ -89,7 +89,7 @@ class TLACDCExperiment:
         ] = "reverse",  # we get best performance with reverse I think
         names_mode: Literal["normal", "reverse", "shuffle"] = "normal",
         early_exit: bool = False,
-        positions: Optional[List[int]] = None,  # if None, do not split by position. TODO change the syntax here...
+        positions: Optional[list[int]] = None,  # if None, do not split by position. TODO change the syntax here...
     ):
         """Initialize the ACDC experiment"""
 

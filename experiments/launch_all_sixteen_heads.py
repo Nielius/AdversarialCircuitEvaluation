@@ -1,5 +1,4 @@
 import random
-from typing import List
 
 from experiments.launcher import KubernetesJob, WandbIdentifier, launch
 
@@ -22,7 +21,7 @@ def main(TASKS: list[str], job: KubernetesJob, name: str, group_name: str):
 
     wandb_identifier = WandbIdentifier(run_name=f"{name}-{{i:05d}}", group_name=group_name, project="acdc")
 
-    commands: List[List[str]] = []
+    commands: list[list[str]] = []
     for reset_network in [0, 1]:
         for zero_ablation in [0, 1]:
             for task in TASKS:

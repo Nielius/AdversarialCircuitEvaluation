@@ -1,5 +1,3 @@
-from typing import List
-
 import wandb
 from acdc.acdc_utils import get_edge_stats, get_node_stats
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
@@ -48,7 +46,7 @@ def print_stats(recovered_corr, ground_truth_subgraph, do_print=True):
     }
 
 
-def log_plotly_bar_chart(x: List[str], y: List[float]) -> None:
+def log_plotly_bar_chart(x: list[str], y: list[float]) -> None:
     import plotly.graph_objects as go
 
     fig = go.Figure(data=[go.Bar(x=x, y=y)])

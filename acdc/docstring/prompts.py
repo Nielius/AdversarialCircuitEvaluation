@@ -8,7 +8,7 @@ See here https://github.com/jettmayzner/mi_utils_public
 
 import random
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import torch
 from torchtyping import TensorType as TT
@@ -713,8 +713,8 @@ common_single_token_nouns = [
 class Prompt:
     clean_prompt: str
     corrupt_prompt: Union[str, dict[str, str]]
-    correct_answers: List[str]
-    wrong_answers: List[str]
+    correct_answers: list[str]
+    wrong_answers: list[str]
 
     def __post_init__(self):
         assert not self.clean_prompt.startswith("<|BOS|>")
@@ -775,7 +775,7 @@ class Prompt:
 
 class BatchedPrompts:
     @typechecked
-    def __init__(self, prompts: List[Prompt], model: HookedTransformer):
+    def __init__(self, prompts: list[Prompt], model: HookedTransformer):
         self.clean_prompt = [p.clean_prompt for p in prompts]
         if isinstance(prompts[0].corrupt_prompt, str):
             self.corrupt_prompt = [p.corrupt_prompt for p in prompts]
@@ -837,10 +837,10 @@ def docstring_prompt_templ(
     style: str,
     *,
     met_name: str,
-    met_desc_words: List[str],
-    def_args: List[str],
-    doc_args: List[str],
-    doc_args_desc_words: List[List[str]],
+    met_desc_words: list[str],
+    def_args: list[str],
+    doc_args: list[str],
+    doc_args_desc_words: list[list[str]],
     default: bool = False,
 ) -> str:
     def_args_str = ", ".join(arg + ("=None" if default else "") for arg in def_args)

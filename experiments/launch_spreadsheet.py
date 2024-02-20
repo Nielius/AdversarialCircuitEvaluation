@@ -1,5 +1,4 @@
 import random
-from typing import List
 
 import numpy as np
 
@@ -35,7 +34,7 @@ def main(
 
     wandb_identifier = WandbIdentifier(run_name=run_name, group_name=group_name, project="acdc")
 
-    commands: List[List[str]] = []
+    commands: list[list[str]] = []
     for reset_network in [int(reset_networks)]:
         for zero_ablation in [0]:
             for task in TASKS:

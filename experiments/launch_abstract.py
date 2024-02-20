@@ -1,5 +1,4 @@
 import random
-from typing import List
 
 from experiments.launcher import KubernetesJob, WandbIdentifier, launch
 
@@ -23,7 +22,7 @@ def main(use_kubernetes: bool, testing: bool, CPU: int = 4):
         project="acdc",
     )
 
-    commands: List[List[str]] = []
+    commands: list[list[str]] = []
     for kwargs in kwargses:
         command = [
             "python",

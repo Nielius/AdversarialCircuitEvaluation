@@ -1,5 +1,4 @@
 # these introduce several important classes !!!
-from typing import List, Tuple
 
 from acdc.TLACDCEdge import (
     EdgeType,
@@ -22,8 +21,8 @@ class TLACDCInterpNode:
         self.name = name
         self.index = index
 
-        self.parents: List["TLACDCInterpNode"] = []
-        self.children: List["TLACDCInterpNode"] = []
+        self.parents: list["TLACDCInterpNode"] = []
+        self.children: list["TLACDCInterpNode"] = []
 
         self.incoming_edge_type = incoming_edge_type
 
@@ -73,7 +72,7 @@ def parse_interpnode(s: str) -> TLACDCInterpNode:
     return TLACDCInterpNode(name, TorchIndex([None, None, idx]), EdgeType.ADDITION)
 
 
-def heads_to_nodes_to_mask(heads: List[Tuple[int, int]], return_dict=False):
+def heads_to_nodes_to_mask(heads: list[tuple[int, int]], return_dict=False):
     nodes_to_mask_strings = [
         f"blocks.{layer_idx}{'.attn' if not inputting else ''}.hook_{letter}{'_input' if inputting else ''}[COL, COL, {head_idx}]"
         # for layer_idx in range(model.cfg.n_layers)

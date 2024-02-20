@@ -1,6 +1,6 @@
 import itertools
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, Optional, Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -306,10 +306,10 @@ def graph_from_edges(
 
 def do_plotly_plot_and_log(
     experiment,
-    x: List[int],
-    y: List[float],
+    x: list[int],
+    y: list[float],
     plot_name: str,
-    metadata: Optional[List[str]] = None,
+    metadata: Optional[list[str]] = None,
 ) -> None:
     # Create a plotly plot with metadata
     fig = go.Figure(data=[go.Scatter(x=x, y=y, mode="lines+markers", text=metadata)])

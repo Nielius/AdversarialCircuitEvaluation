@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import Callable, ContextManager, List, Tuple, TypeAlias
+from typing import Callable, ContextManager, TypeAlias
 
 import torch
 from einops import rearrange
@@ -291,7 +291,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         self.forward_cache.cache_dict[hook.name] = hook_point_out
         return hook_point_out
 
-    def fwd_hooks(self) -> List[Tuple[str, Callable]]:
+    def fwd_hooks(self) -> list[tuple[str, Callable]]:
         return [(n, self.activation_mask_hook) for n in self.mask_logits_names] + [
             (n, self.caching_hook) for n in self.forward_cache_hook_points
         ]

@@ -2,7 +2,7 @@ import dataclasses
 import shlex
 import subprocess
 from pathlib import Path
-from typing import List, Optional, TextIO, Tuple
+from typing import Optional, TextIO
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,7 +29,7 @@ class WandbIdentifier:
 
 
 def launch(
-    commands: List[List[str]],
+    commands: list[list[str]],
     name: str,
     job: Optional[KubernetesJob] = None,
     check_wandb: Optional[WandbIdentifier] = None,
@@ -37,7 +37,7 @@ def launch(
     synchronous=True,
     just_print_commands=False,
 ):
-    to_wait: List[Tuple[str, subprocess.Popen, TextIO, TextIO]] = []
+    to_wait: list[tuple[str, subprocess.Popen, TextIO, TextIO]] = []
 
     assert len(commands) <= 100_000, "Too many commands for 5 digits"
 

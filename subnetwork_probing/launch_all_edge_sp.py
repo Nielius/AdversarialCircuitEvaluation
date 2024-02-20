@@ -2,7 +2,6 @@
 import random
 import subprocess
 import sys
-from typing import List
 
 import numpy as np
 
@@ -43,7 +42,7 @@ def make_yamls(
     seed = 1507014021
     random.seed(seed)
 
-    yamls: List[List[str]] = []
+    yamls: list[list[str]] = []
     i = 0
     for reset_network in [int(reset_networks)]:
         for zero_ablation in [0, 1]:
