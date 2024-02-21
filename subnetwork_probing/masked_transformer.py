@@ -18,7 +18,7 @@ PatchData: TypeAlias = Num[torch.Tensor, "batch pos"] | None  # use None if you 
 
 
 def create_mask_parameters_and_forward_cache_hook_points(
-    use_pos_embed: bool, num_heads: int, n_layers: int, device: str, mask_init_constant: float, attn_only: bool
+    use_pos_embed: bool, num_heads: int, num_layers: int, device: str, mask_init_constant: float, attn_only: bool
 ):
     """
     Given the relevant configuration for a transformer, this function produces two things:
@@ -74,7 +74,7 @@ def create_mask_parameters_and_forward_cache_hook_points(
 
     # Add mask logits for ablation cache
     # Mask logits have a variable dimension depending on the number of in-edges (increases with layer)
-    for layer_i in range(n_layers):
+    for layer_i in range(num_layers):
         for q_k_v in ["q", "k", "v"]:
             setup_input_hook_point(mask_name=f"blocks.{layer_i}.hook_{q_k_v}_input", num_instances=num_heads)
 
@@ -85,12 +85,7 @@ def create_mask_parameters_and_forward_cache_hook_points(
             setup_output_hook_point(f"blocks.{layer_i}.hook_mlp_out", num_instances=1)
 
     # why does this get a mask? isn't it pointless to mask this?
-    setup_input_hook_point(mask_name=f"blocks.{n_layers - 1}.hook_resid_post", num_instances=1)
-
-    # TODO: remove this unnecessary test; move this to test
-    for parent_list in hook_point_to_parents.values():
-        for parent in parent_list:
-            assert parent in ordered_forward_cache_hook_points, f"{parent} not in forward cache names"
+    setup_input_hook_point(mask_name=f"blocks.{num_layers - 1}.hook_resid_post", num_instances=1)
 
     return ordered_forward_cache_hook_points, hook_point_to_parents, mask_parameter_list, mask_parameter_dict
 
@@ -168,7 +163,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         ) = create_mask_parameters_and_forward_cache_hook_points(
             use_pos_embed=self.use_pos_embed,
             num_heads=self.n_heads,
-            n_layers=model.cfg.n_layers,
+            num_layers=model.cfg.n_layers,
             device=self.device,
             mask_init_constant=math.log(p / (1 - p)),
             attn_only=model.cfg.attn_only,

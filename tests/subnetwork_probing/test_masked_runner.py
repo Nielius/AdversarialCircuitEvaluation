@@ -6,6 +6,7 @@ from acdc.greaterthan.utils import get_all_greaterthan_things
 from acdc.nudb.adv_opt.data_fetchers import AdvOptTaskName
 from acdc.nudb.adv_opt.masked_runner import MaskedRunner
 from acdc.tracr_task.utils import get_all_tracr_things
+from subnetwork_probing.masked_transformer import create_mask_parameters_and_forward_cache_hook_points
 
 
 @pytest.mark.parametrize("task", [AdvOptTaskName.DOCSTRING, AdvOptTaskName.TRACR_REVERSE, AdvOptTaskName.GREATERTHAN])
@@ -46,3 +47,28 @@ def test_running_without_ablating_edges_is_same_as_running_underlying_model(task
     assert torch.allclose(
         output_tl_model, output_full_circuit, atol=1e-4
     )  # it looks like there are small discrepancies in each layer, that add up; not sure why we are getting the small discrepancies though
+
+
+def test_create_mask_parameters_and_forward_cache_hook_points():
+    outputs = create_mask_parameters_and_forward_cache_hook_points(
+        use_pos_embed=True,
+        num_heads=4,
+        num_layers=3,
+        device="cpu",
+        mask_init_constant=0.123,
+        attn_only=False,
+    )
+
+    ordered_forward_cache_hook_points = outputs[0]
+    hook_point_to_parents = outputs[1]
+    # mask_parameter_list = outputs[2]
+    # mask_parameter_dict = outputs[3]
+
+    for parent_list in hook_point_to_parents.values():
+        for parent in parent_list:
+            assert parent in ordered_forward_cache_hook_points, f"{parent} not in forward cache names"
+
+    assert "hook_embed" in ordered_forward_cache_hook_points
+    assert "hook_pos_embed" in ordered_forward_cache_hook_points
+
+    # could test the shapes here, but I'm going to leave it for now
