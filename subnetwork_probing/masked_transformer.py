@@ -1,10 +1,11 @@
 import logging
 import math
-from typing import Callable, ContextManager, TypeAlias
+from contextlib import contextmanager
+from typing import Callable, ContextManager, Generator, Iterable, TypeAlias
 
 import torch
 from einops import rearrange
-from jaxtyping import Num
+from jaxtyping import Float, Num
 from torch.utils.checkpoint import checkpoint
 from transformer_lens import ActivationCache, HookedTransformer
 from transformer_lens.hook_points import HookPoint
@@ -170,7 +171,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         )
 
     @property
-    def mask_logits_names(self):
+    def mask_parameter_names(self) -> Iterable[str]:
         return self._mask_parameter_dict.keys()
 
     def sample_mask(self, mask_name: str) -> torch.Tensor:
@@ -234,9 +235,9 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
             result.append(value)
         return torch.cat(result, dim=2)
 
-    def compute_weighted_values(self, hook: HookPoint):
+    def compute_weighted_values(self, hook: HookPoint) -> Float[torch.Tensor, "batch pos head_index d_resid"]:
         parent_names = self.hook_point_to_parents[hook.name]
-        ablation_values = self.get_activation_values(parent_names, self.ablation_cache)  # b s i d
+        ablation_values = self.get_activation_values(parent_names, self.ablation_cache)  # b s i d (i = parentindex)
         forward_values = self.get_activation_values(parent_names, self.forward_cache)  # b s i d
         mask = self.sample_mask(hook.name)  # in_edges, nodes_per_mask, ...
 
@@ -276,7 +277,6 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         if self.verbose:
             no_change = torch.allclose(hook_point_out, out)
             absdiff = (hook_point_out - out).abs().mean()
-            # sqdiff_values = (a_values - f_values).pow(2).mean()
             print(f"Ablation hook {'did NOT' if no_change else 'DID'} change {hook.name} by {absdiff:.3f}")
         torch.cuda.empty_cache()
         show(f"Using memory {torch.cuda.memory_allocated():_} bytes after clearing cache")
@@ -287,16 +287,35 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         return hook_point_out
 
     def fwd_hooks(self) -> list[tuple[str, Callable]]:
-        return [(n, self.activation_mask_hook) for n in self.mask_logits_names] + [
-            (n, self.caching_hook) for n in self.forward_cache_hook_points
+        return [(hook_point, self.activation_mask_hook) for hook_point in self.mask_parameter_names] + [
+            (hook_point, self.caching_hook) for hook_point in self.forward_cache_hook_points
         ]
+
+    def with_fwd_hooks(self) -> ContextManager[HookedTransformer]:
+        return self.model.hooks(self.fwd_hooks())
 
     def with_fwd_hooks_and_new_ablation_cache(self, patch_data: PatchData) -> ContextManager[HookedTransformer]:
         self.calculate_and_store_ablation_cache(patch_data)
         return self.with_fwd_hooks()
 
-    def with_fwd_hooks(self) -> ContextManager[HookedTransformer]:
-        return self.model.hooks(self.fwd_hooks())
+    @contextmanager
+    def hooks(
+        self,
+        fwd_hooks: list[tuple[str | Callable, Callable]] | None = None,
+        bwd_hooks: list[tuple[str | Callable, Callable]] | None = None,
+        reset_hooks_end: bool = True,
+        clear_contexts: bool = False,
+    ) -> Generator["EdgeLevelMaskedTransformer", None, None]:
+        """Imitates the 'hooks' context manager in HookedTransformer."""
+        with self.model.hooks(
+            fwd_hooks=fwd_hooks or [],
+            bwd_hooks=bwd_hooks or [],
+            reset_hooks_end=reset_hooks_end,
+            clear_contexts=clear_contexts,
+        ):
+            # the with-statement above updates the hooks in self.model
+            # so we can simply yield self
+            yield self
 
     def freeze_weights(self):
         for p in self.model.parameters():
@@ -370,7 +389,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         binary_count = 0
         total_count = 0
 
-        for mask_name in self.mask_logits_names:
+        for mask_name in self.mask_parameter_names:
             mask = self.sample_mask(mask_name)
             for v in mask.view(-1):
                 total_count += 1

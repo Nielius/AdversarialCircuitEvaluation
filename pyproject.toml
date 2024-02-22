@@ -56,6 +56,9 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 testpaths = "acdc subnetwork_probing experiments notebooks tests"
+# Use jaxtyping runtime checks when using pytest; see https://docs.kidger.site/jaxtyping/api/runtime-type-checking/#pytest-hook
+# nice feature, but it slows down some tests a lot, hence commented out
+# addopts = "--jaxtyping-packages=acdc,beartype.beartype"
 
 [tool.ruff]
 line-length = 120

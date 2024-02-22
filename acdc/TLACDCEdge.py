@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, TypeAlias
+from typing import Iterable, Optional, TypeAlias
 
 
 class EdgeType(Enum):
@@ -71,18 +71,18 @@ class TorchIndex:
 
     def __init__(
         self,
-        list_of_things_in_tuple: List,
+        list_of_things_in_tuple: Iterable[int] | None,
     ):
         # check correct types
         for arg in list_of_things_in_tuple:
             if type(arg) in [type(None), int]:
                 continue
             else:
-                assert isinstance(arg, list)
+                assert isinstance(arg, Iterable)
                 assert all([type(x) == int for x in arg])  # noqa: E721
 
         # make an object that can be indexed into a tensor
-        self.as_index = tuple([slice(None) if x is None else x for x in list_of_things_in_tuple])
+        self.as_index = tuple(x if x is not None else slice(None) for x in list_of_things_in_tuple)
 
         # make an object that can be hashed (so used as a dictionary key)
         self.hashable_tuple = tuple(list_of_things_in_tuple)

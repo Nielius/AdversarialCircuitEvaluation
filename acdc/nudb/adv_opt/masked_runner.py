@@ -1,7 +1,7 @@
 import itertools
 from contextlib import contextmanager
 from functools import cached_property
-from typing import Generator
+from typing import Callable, Generator
 
 import torch
 from jaxtyping import Float, Integer, Num
@@ -81,14 +81,21 @@ class MaskedRunner:
 
     @contextmanager
     def with_ablated_edges(
-        self, patch_input: Num[torch.Tensor, "batch pos"], edges_to_ablate: list[Edge]
+        self,
+        patch_input: Num[torch.Tensor, "batch pos"] | None,
+        edges_to_ablate: list[Edge],
     ) -> Generator[HookedTransformer, None, None]:
+        """If 'patch_input' is None, do not recalculate the ablation cache. This is useful if you're running the model
+        with the same patch input as before, and you don't want to recalculate the ablation cache.
+        It is also useful if you're adding hooks that get in the way of the ablation cache calculation."""
         for edge in edges_to_ablate:
             assert edge in self.all_ablatable_edges  # safety check
             self._set_mask_for_edge(edge.child, edge.parent, float("-inf"))
 
         try:
-            with self.masked_transformer.with_fwd_hooks_and_new_ablation_cache(patch_data=patch_input) as hooked_model:
+            if patch_input is not None:
+                self.masked_transformer.calculate_and_store_ablation_cache(patch_input)
+            with self.masked_transformer.with_fwd_hooks() as hooked_model:
                 yield hooked_model
 
         finally:
@@ -97,30 +104,49 @@ class MaskedRunner:
                     edge.child, edge.parent, float("inf")
                 )  # this class is not intended to keep state
 
+    @contextmanager
+    def hooks(
+        self,
+        fwd_hooks: list[tuple[str | Callable, Callable]] | None = None,
+        bwd_hooks: list[tuple[str | Callable, Callable]] | None = None,
+        reset_hooks_end: bool = True,
+        clear_contexts: bool = False,
+    ) -> Generator["MaskedRunner", None, None]:
+        """Imitates the 'hooks' context manager in HookedTransformer."""
+        with self.masked_transformer.hooks(
+            fwd_hooks=fwd_hooks,
+            bwd_hooks=bwd_hooks,
+            reset_hooks_end=reset_hooks_end,
+            clear_contexts=clear_contexts,
+        ):
+            yield self
+
     def run(
         self,
         input: Num[torch.Tensor, "batch pos"],
-        patch_input: Num[torch.Tensor, "batch pos"],
+        patch_input: Num[torch.Tensor, "batch pos"] | None,
         edges_to_ablate: list[Edge],
     ) -> Num[torch.Tensor, "batch pos vocab"]:
+        """If 'patch_input' is None, do not recalculate the ablation cache.
+        Instead, use the ablation cache that has already been calculated."""
         with self.with_ablated_edges(patch_input=patch_input, edges_to_ablate=edges_to_ablate) as hooked_model:
             return hooked_model(input)
 
     def run_with_linear_combination(
         self,
-        input_embedded: Float[torch.Tensor, "batch pos"],
-        dummy_input: Integer[torch.Tensor, "batch pos"],
+        input_embedded: Float[torch.Tensor, "batch pos d_resid"],
+        dummy_input: Integer[torch.Tensor, " pos"],
         coefficients: Num[torch.Tensor, " batch"],
-        patch_input: Num[torch.Tensor, "batch pos"],
+        patch_input: Num[torch.Tensor, " pos"],
         edges_to_ablate: list[Edge],
     ) -> Float[torch.Tensor, "1 pos vocab"]:
-        """'input_embedded' should be the input after the embedding layer."""
+        """'input_embedded' should be the input after the embedding layer.
+
+        'dummy_input' and 'patch_input' should be a single input point (pre-embedding, without batch dim)"""
 
         def replace_embedding_with_convex_combination_hook(
             hook_point_out: torch.Tensor, hook: HookPoint, verbose=False
         ) -> Float[torch.Tensor, "1 pos d_resid"]:
-            # TODO: this probably be a convex combination of the embeddings, and also
-            # with a softmax
             convex_combination = torch.einsum(
                 "b, b p d -> p d",
                 [torch.nn.functional.softmax(coefficients), input_embedded],
@@ -128,9 +154,11 @@ class MaskedRunner:
             return convex_combination
 
         # self.masked_transformer.init_ablation_cache(ablation=) <--- probably want to do something like this
-        with self.with_ablated_edges(patch_input=patch_input, edges_to_ablate=edges_to_ablate) as hooked_transformer:
-            assert isinstance(hooked_transformer, HookedTransformer)  # help PyCharm
-            with hooked_transformer.hooks(
-                fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook)]
-            ) as hooked_with_linear_combination:
-                return hooked_with_linear_combination(dummy_input)
+        # NOTE: we're going to have 2 hooks at the hook_embed point; does that work? otherwise, relatively big change
+        self.masked_transformer.calculate_and_store_ablation_cache(patch_input)
+        with self.hooks(
+            fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook)]
+        ) as runner_with_convex_combination:
+            return runner_with_convex_combination.run(
+                input=dummy_input.unsqueeze(0), patch_input=None, edges_to_ablate=edges_to_ablate
+            )
