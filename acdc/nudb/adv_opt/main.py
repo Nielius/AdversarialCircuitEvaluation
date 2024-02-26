@@ -1,114 +1,139 @@
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
+import hydra
+import omegaconf
 import torch
+from hydra.core.config_store import ConfigStore
 from jaxtyping import Integer
 
 import wandb
-from acdc.nudb.adv_opt.data_fetchers import EXPERIMENT_DATA_PROVIDERS, AdvOptTaskName
+from acdc.nudb.adv_opt.data_fetchers import (
+    AdvOptExperimentData,
+    AdvOptTaskName,
+    get_standard_experiment_data,
+)
 from acdc.nudb.adv_opt.main_circuit_performance_distribution import kl_div_on_output_logits
+from acdc.nudb.adv_opt.utils import device, joblib_memory
 
-# Log in to your W&B account
-wandb.login()
 
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
+@dataclass
+class TaskSpecificSettings:
+    task_name: AdvOptTaskName
+    metric_name: str = "kl_div"
+
+
+@dataclass
+class TracrReverseTaskSpecificSettings(TaskSpecificSettings):
+    metric_name: str = "l2"
+
+    artificially_corrupt_model: bool = True
 
 
 @dataclass
 class ExperimentSettings:
-    task_name: AdvOptTaskName
+    task: TaskSpecificSettings
     num_epochs: int
-    metric_name: str = "kl_div"
+    wandb_run_name: str | None = None
+    use_wandb: bool = False
     random_seed: int | None = None
 
 
-settings = ExperimentSettings(
-    task_name=AdvOptTaskName.TRACR_REVERSE,
-    metric_name="l2",
-    num_epochs=5,
-)
+cs = ConfigStore.instance()
+cs.store(name="config_schema", node=ExperimentSettings)
+# Not sure if/why you need to add the two lines below. Maybe just for checking that config schema?
+# (I'm now 80% sure that these things are only for schema matching.)
+cs.store(group="task", name="greaterthan_schema", node=TaskSpecificSettings)
+cs.store(group="task", name="tracr_reverse_schema", node=TracrReverseTaskSpecificSettings)
 
 
-if settings.random_seed is not None:
-    torch.manual_seed(settings.random_seed)
-    random.seed(settings.random_seed)
+@joblib_memory.cache
+def get_experiment_data_cached(task_name: AdvOptTaskName) -> AdvOptExperimentData:
+    return get_standard_experiment_data(task_name)
 
 
-wandb.init(
-    project="pytorch-intro",
-    config=asdict(settings),
-    mode="disabled",
-)
+@hydra.main(config_path="conf", config_name="config", version_base=None)
+def main(settings: ExperimentSettings) -> None:
+    if settings.random_seed is not None:
+        torch.manual_seed(settings.random_seed)
+        random.seed(settings.random_seed)
 
-experiment_data = EXPERIMENT_DATA_PROVIDERS[AdvOptTaskName.TRACR_REVERSE].get_experiment_data(
-    num_examples=30,
-    metric_name="l2",
-    device=device,
-)
-
-# stack test_data and validation_data
-base_input: Integer[torch.Tensor, "batch pos"] = torch.cat(
-    [experiment_data.task_data.test_data, experiment_data.task_data.validation_data]
-)
-
-experiment_data.masked_runner.masked_transformer.freeze_weights()
-
-
-convex_coefficients = torch.rand(base_input.shape[0], requires_grad=True)
-
-
-# maybe should do some kind of normalization at the end of
-
-# TODO: can probably choose better optimizers?
-optimizer = torch.optim.Adam([convex_coefficients], lr=1e-3)
-
-base_input_embedded = experiment_data.masked_runner.masked_transformer.model.embed(base_input)
-
-
-dummy_input = experiment_data.task_data.test_data[
-    0, ...
-]  # this is dummy input, because the embed hook replaces it anyway. But its shape is used
-patch_input = experiment_data.task_data.test_patch_data[0, ...]
-
-
-for i in range(settings.num_epochs):
-    # normalize linear coefficients
-    # with torch.no_grad():
-    #     # I suppose the no_grad is necessary here?
-    #     # layer norm is usually involved in the gradient, isn't it? so maybe we should just keep it
-    #     # except of course for the first iteration?
-    #     # normalize so that it sums to 1
-    #     convex_coefficients.divide /= convex_coefficients / convex_coefficients.sum()
-    # convex_coefficients.requires_grad = True
-
-    # Which optimizer would be good for this? Try Adam or AdamW for now
-    # Normalization of the coefficients?
-    # Try different initizalizations of the coefficients, see if it's sensitive to that
-    # maybe just set all to zero in initialization?
-    optimizer.zero_grad()
-    circuit_output = experiment_data.masked_runner.run_with_linear_combination(
-        input_embedded=base_input_embedded,
-        dummy_input=dummy_input,
-        coefficients=convex_coefficients,
-        patch_input=patch_input,
-        edges_to_ablate=list(experiment_data.ablated_edges),
+    # Log in to your W&B account
+    wandb.login()
+    wandb.init(
+        project="advopt-input-only",
+        config=omegaconf.OmegaConf.to_container(settings),
+        mode="online" if settings.use_wandb else "disabled",
+        name=settings.wandb_run_name,
     )
-    full_output = experiment_data.masked_runner.run_with_linear_combination(
-        input_embedded=base_input_embedded,
-        dummy_input=dummy_input,
-        coefficients=convex_coefficients,
-        patch_input=patch_input,
-        edges_to_ablate=[],
+
+    experiment_data = get_experiment_data_cached(task_name=settings.task.task_name)
+    experiment_data.masked_runner.masked_transformer.freeze_weights()
+
+    # stack test_data and validation_data
+    base_input: Integer[torch.Tensor, "batch pos"] = torch.cat(
+        [experiment_data.task_data.test_data, experiment_data.task_data.validation_data]
     )
-    negative_loss = -1 * kl_div_on_output_logits(
-        circuit_output,
-        full_output,
-        last_sequence_position_only=experiment_data.metric_last_sequence_position_only,
-    )
-    negative_loss.backward()
-    optimizer.step()
-    wandb.log({"loss": -1 * negative_loss})
-    print(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
-    print("Convex coefficients:", convex_coefficients)
-    # TODO: should normalize the coefficients somewhere around here
-    # wandb.log({"loss": loss, "convex_combination": convex_coefficients})
+    base_input_embedded = experiment_data.masked_runner.masked_transformer.model.embed(base_input)
+
+    patch_input = experiment_data.task_data.test_patch_data[0, ...]
+    dummy_input = experiment_data.task_data.test_data[0, ...]
+
+    convex_coefficients = torch.rand(base_input.shape[0], requires_grad=True, device=device)
+    optimizer = torch.optim.Adam([convex_coefficients], lr=1e-3)
+
+    if settings.task.task_name == AdvOptTaskName.TRACR_REVERSE:
+        settings_ = omegaconf.OmegaConf.to_object(settings)
+        assert isinstance(settings_.task, TracrReverseTaskSpecificSettings)
+        if settings_.task.artificially_corrupt_model:
+            # in this case, the model is perfect, so we can't do any optimization
+            # for testing purposes, let's make it less perfect by changing the weights of the last MLP
+            torch.nn.init.normal_(experiment_data.masked_runner.masked_transformer.model.blocks[3].mlp.W_in)
+            torch.nn.init.normal_(experiment_data.masked_runner.masked_transformer.model.blocks[3].mlp.W_out)
+
+    for i in range(settings.num_epochs):
+        # normalize linear coefficients
+        # with torch.no_grad():
+        #     # I suppose the no_grad is necessary here?
+        #     # layer norm is usually involved in the gradient, isn't it? so maybe we should just keep it
+        #     # except of course for the first iteration?
+        #     # normalize so that it sums to 1
+        #     convex_coefficients.divide /= convex_coefficients / convex_coefficients.sum()
+        # convex_coefficients.requires_grad = True
+        #
+        # Normalizing has no effect, because the softmax implementation subtracts the maximum anyway.
+
+        # Which optimizer would be good for this? Try Adam or AdamW for now
+        # Normalization of the coefficients?
+        # Try different initizalizations of the coefficients, see if it's sensitive to that
+        # maybe just set all to zero in initialization?
+        optimizer.zero_grad()
+        circuit_output = experiment_data.masked_runner.run_with_linear_combination(
+            input_embedded=base_input_embedded,
+            dummy_input=dummy_input,
+            coefficients=convex_coefficients,
+            patch_input=patch_input,
+            edges_to_ablate=list(experiment_data.ablated_edges),
+        )
+        full_output = experiment_data.masked_runner.run_with_linear_combination(
+            input_embedded=base_input_embedded,
+            dummy_input=dummy_input,
+            coefficients=convex_coefficients,
+            patch_input=patch_input,
+            edges_to_ablate=[],
+        )
+        negative_loss = -1 * kl_div_on_output_logits(
+            circuit_output,
+            full_output,
+            last_sequence_position_only=experiment_data.metric_last_sequence_position_only,
+        )
+        negative_loss.backward()
+        optimizer.step()
+        wandb.log({"loss": -1 * negative_loss})
+        print(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
+        print("Convex coefficients:", convex_coefficients)
+        # wandb.log({"loss": loss, "convex_combination": convex_coefficients})
+
+
+if __name__ == "__main__":
+    main()

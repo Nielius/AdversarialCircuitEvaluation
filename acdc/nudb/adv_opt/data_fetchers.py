@@ -9,6 +9,7 @@ from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_do
 from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
 from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
 from acdc.nudb.adv_opt.masked_runner import MaskedRunner
+from acdc.nudb.adv_opt.utils import device
 from acdc.TLACDCEdge import Edge, IndexedHookPointName
 from acdc.tracr_task.utils import get_all_tracr_things, get_tracr_proportion_edges, get_tracr_reverse_edges
 
@@ -144,3 +145,12 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
 #    Any edge or not that is not included in at least one path from input to output can be safely ablated,
 #    because ablating it has the same effect on the output as not ablating it.
 #    I'm not 100% sure that the ACDC correspondence does not include such dangling edges/nodes, but I think so.
+
+
+def get_standard_experiment_data(task_name: AdvOptTaskName) -> AdvOptExperimentData:
+    experiment_data = EXPERIMENT_DATA_PROVIDERS[task_name].get_experiment_data(
+        num_examples=1000 if task_name != AdvOptTaskName.TRACR_REVERSE else 30,
+        metric_name="kl_div" if task_name != AdvOptTaskName.TRACR_REVERSE else "l2",
+        device=device,
+    )
+    return experiment_data

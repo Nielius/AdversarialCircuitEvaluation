@@ -145,15 +145,18 @@ class GreaterThanConstants:
     _instance: ClassVar[Optional["GreaterThanConstants"]] = None
 
     @classmethod
-    def get(cls: type["GreaterThanConstants"], device) -> "GreaterThanConstants":
+    def get(cls: type["GreaterThanConstants"], device, tokenizer=None) -> "GreaterThanConstants":
         if cls._instance is None:
-            cls._instance = cls(device)
+            cls._instance = cls(device, tokenizer)
         return cls._instance
 
-    def __init__(self, device):
-        model = get_gpt2_small(device=device)
-        _TOKENIZER = model.tokenizer
-        del model
+    def __init__(self, device, tokenizer=None):
+        if tokenizer is None:
+            model = get_gpt2_small(device=device)
+            _TOKENIZER = model.tokenizer
+            del model
+        else:
+            _TOKENIZER = tokenizer
 
         self.YEARS = []
         self.YEARS_BY_CENTURY = {}
@@ -220,7 +223,7 @@ def greaterthan_metric(logits, tokens, return_one_element: bool = True):
 
 
 def get_year_data(num_examples, model):
-    constants = GreaterThanConstants.get(model.cfg.device)
+    constants = GreaterThanConstants.get(model.cfg.device, model.tokenizer)
 
     template = "The {noun} lasted from the year {year1} to "
 

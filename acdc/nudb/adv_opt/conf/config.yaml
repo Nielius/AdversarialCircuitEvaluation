@@ -1,0 +1,6 @@
+defaults:
+  - config_schema
+  - task: tracr_reverse
+
+num_epochs: 5
+wandb_run_name: "${oc.decode:${task.task_name}}_${num_epochs}"

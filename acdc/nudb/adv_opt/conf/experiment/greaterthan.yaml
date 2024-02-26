@@ -1,0 +1,9 @@
+# @package _global_
+defaults:
+  - override /task: greaterthan
+
+
+num_epochs: 2000 
+random_seed: 4321
+wandb_run_name: greaterthan_2000
+use_wandb: True

@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from jaxtyping import Float
 
-from acdc.nudb.adv_opt.data_fetchers import EXPERIMENT_DATA_PROVIDERS, AdvOptExperimentData, AdvOptTaskName
+from acdc.nudb.adv_opt.data_fetchers import AdvOptExperimentData, AdvOptTaskName, get_standard_experiment_data
 from acdc.nudb.adv_opt.utils import CIRCUITBENCHMARKS_DATA_DIR, device
 from acdc.TLACDCEdge import Edge
 
@@ -152,13 +152,7 @@ def main_for_plotting_three_experiments(
     include_full_circuit: bool = False,  # this is only intended as a sanity check
 ) -> CircuitPerformanceDistributionResults:
     logger.info("Starting plotting experiment for '%s'.", experiment_name)
-    experiment = CircuitPerformanceDistributionExperiment(
-        experiment_data=EXPERIMENT_DATA_PROVIDERS[experiment_name].get_experiment_data(
-            num_examples=1000 if experiment_name != AdvOptTaskName.TRACR_REVERSE else 30,
-            metric_name="kl_div" if experiment_name != AdvOptTaskName.TRACR_REVERSE else "l2",
-            device=device,
-        )
-    )
+    experiment = CircuitPerformanceDistributionExperiment(experiment_data=get_standard_experiment_data(experiment_name))
 
     if include_full_circuit:
         logger.info("Running with all edges")
