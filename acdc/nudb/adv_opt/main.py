@@ -1,11 +1,14 @@
+import logging
 import random
 from dataclasses import dataclass
+from pathlib import Path
 
 import hydra
+import hydra.core.hydra_config as hydra_config
 import omegaconf
 import torch
 from hydra.core.config_store import ConfigStore
-from jaxtyping import Integer
+from jaxtyping import Float, Integer
 
 import wandb
 from acdc.nudb.adv_opt.data_fetchers import (
@@ -15,6 +18,8 @@ from acdc.nudb.adv_opt.data_fetchers import (
 )
 from acdc.nudb.adv_opt.main_circuit_performance_distribution import kl_div_on_output_logits
 from acdc.nudb.adv_opt.utils import device, joblib_memory
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,9 +39,29 @@ class TracrReverseTaskSpecificSettings(TaskSpecificSettings):
 class ExperimentSettings:
     task: TaskSpecificSettings
     num_epochs: int
+    adam_lr: float = 1e-3
     wandb_run_name: str | None = None
+    wandb_group_name: str | None = None
     use_wandb: bool = False
     random_seed: int | None = None
+
+
+@dataclass
+class ExperimentArtifacts:
+    coefficients_init: Float[torch.Tensor, " batch"] | None = None
+    coefficients_final: Float[torch.Tensor, " batch"] | None = None
+
+    def save(self, output_dir: Path):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(self.coefficients_init, output_dir / "coefficients_init.pt")
+        torch.save(self.coefficients_final, output_dir / "coefficients_final.pt")
+
+    @classmethod
+    def load(cls, output_dir: Path) -> "ExperimentArtifacts":
+        return cls(
+            coefficients_init=torch.load(output_dir / "coefficients_init.pt"),
+            coefficients_final=torch.load(output_dir / "coefficients_final.pt"),
+        )
 
 
 cs = ConfigStore.instance()
@@ -58,6 +83,9 @@ def main(settings: ExperimentSettings) -> None:
         torch.manual_seed(settings.random_seed)
         random.seed(settings.random_seed)
 
+    output_base_dir = Path(hydra_config.HydraConfig.get().runtime.output_dir)
+    artifacts = ExperimentArtifacts()
+
     # Log in to your W&B account
     wandb.login()
     wandb.init(
@@ -65,6 +93,7 @@ def main(settings: ExperimentSettings) -> None:
         config=omegaconf.OmegaConf.to_container(settings),
         mode="online" if settings.use_wandb else "disabled",
         name=settings.wandb_run_name,
+        group=settings.wandb_group_name,
     )
 
     experiment_data = get_experiment_data_cached(task_name=settings.task.task_name)
@@ -80,7 +109,8 @@ def main(settings: ExperimentSettings) -> None:
     dummy_input = experiment_data.task_data.test_data[0, ...]
 
     convex_coefficients = torch.rand(base_input.shape[0], requires_grad=True, device=device)
-    optimizer = torch.optim.Adam([convex_coefficients], lr=1e-3)
+    optimizer = torch.optim.Adam([convex_coefficients], lr=settings.adam_lr)
+    artifacts.coefficients_init = convex_coefficients.detach().clone()
 
     if settings.task.task_name == AdvOptTaskName.TRACR_REVERSE:
         settings_ = omegaconf.OmegaConf.to_object(settings)
@@ -130,9 +160,15 @@ def main(settings: ExperimentSettings) -> None:
         negative_loss.backward()
         optimizer.step()
         wandb.log({"loss": -1 * negative_loss})
-        print(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
-        print("Convex coefficients:", convex_coefficients)
+        logger.info(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
+        logger.debug("Convex coefficients:", convex_coefficients)
         # wandb.log({"loss": loss, "convex_combination": convex_coefficients})
+
+    artifacts.coefficients_final = convex_coefficients.detach().clone()
+    artifacts.save(output_base_dir / "artifacts")
+    logger.info("Finished training. Output stored in %s", output_base_dir)
+
+    wandb.finish()
 
 
 if __name__ == "__main__":

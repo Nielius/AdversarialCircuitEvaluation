@@ -4,3 +4,7 @@ defaults:
 
 num_epochs: 5
 wandb_run_name: "${oc.decode:${task.task_name}}_${num_epochs}"
+wandb_group_name: !!null
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}

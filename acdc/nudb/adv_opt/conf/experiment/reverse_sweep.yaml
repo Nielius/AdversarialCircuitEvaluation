@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /task: tracr_reverse
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      num_epochs: 2200
+      random_seed: 4321
+      adam_lr: 1e-1,1e-2,1e-3,1e-4
+      use_wandb: True

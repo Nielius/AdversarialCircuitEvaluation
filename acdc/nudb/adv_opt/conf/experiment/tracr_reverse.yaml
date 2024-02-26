@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - override /task: greaterthan
+  - override /task: tracr_reverse
 
 
 num_epochs: 2000 
