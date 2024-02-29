@@ -228,9 +228,9 @@ def get_year_data(num_examples, model):
     template = "The {noun} lasted from the year {year1} to "
 
     # set some random seed
-    torch.random.manual_seed(54)
-    nouns_perm = torch.randint(0, len(NOUNS), (num_examples,))
-    years_perm = torch.randint(0, len(constants.YEARS), (num_examples,))
+    rng_generator = torch.Generator().manual_seed(54)
+    nouns_perm = torch.randint(0, len(NOUNS), (num_examples,), generator=rng_generator)
+    years_perm = torch.randint(0, len(constants.YEARS), (num_examples,), generator=rng_generator)
 
     prompts = []
     prompts_tokenized = []
