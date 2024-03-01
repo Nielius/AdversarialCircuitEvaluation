@@ -1,6 +1,5 @@
 import logging
 import random
-from dataclasses import dataclass
 from pathlib import Path
 
 import hydra
@@ -8,7 +7,7 @@ import hydra.core.hydra_config as hydra_config
 import omegaconf
 import torch
 from hydra.core.config_store import ConfigStore
-from jaxtyping import Float, Integer
+from jaxtyping import Integer
 
 import wandb
 from acdc.nudb.adv_opt.data_fetchers import (
@@ -16,53 +15,15 @@ from acdc.nudb.adv_opt.data_fetchers import (
     AdvOptTaskName,
     get_standard_experiment_data,
 )
-from acdc.nudb.adv_opt.main_circuit_performance_distribution import kl_div_on_output_logits
+from acdc.nudb.adv_opt.settings import (
+    ExperimentArtifacts,
+    ExperimentSettings,
+    TaskSpecificSettings,
+    TracrReverseTaskSpecificSettings,
+)
 from acdc.nudb.adv_opt.utils import device, joblib_memory
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class TaskSpecificSettings:
-    task_name: AdvOptTaskName
-    metric_name: str = "kl_div"
-
-
-@dataclass
-class TracrReverseTaskSpecificSettings(TaskSpecificSettings):
-    metric_name: str = "l2"
-
-    artificially_corrupt_model: bool = True
-
-
-@dataclass
-class ExperimentSettings:
-    task: TaskSpecificSettings
-    num_epochs: int
-    adam_lr: float = 1e-3
-    wandb_run_name: str | None = None
-    wandb_group_name: str | None = None
-    use_wandb: bool = False
-    random_seed: int | None = None
-
-
-@dataclass
-class ExperimentArtifacts:
-    coefficients_init: Float[torch.Tensor, " batch"] | None = None
-    coefficients_final: Float[torch.Tensor, " batch"] | None = None
-
-    def save(self, output_dir: Path):
-        output_dir.mkdir(parents=True, exist_ok=True)
-        torch.save(self.coefficients_init, output_dir / "coefficients_init.pt")
-        torch.save(self.coefficients_final, output_dir / "coefficients_final.pt")
-
-    @classmethod
-    def load(cls, output_dir: Path) -> "ExperimentArtifacts":
-        return cls(
-            coefficients_init=torch.load(output_dir / "coefficients_init.pt"),
-            coefficients_final=torch.load(output_dir / "coefficients_final.pt"),
-        )
-
 
 cs = ConfigStore.instance()
 cs.store(name="config_schema", node=ExperimentSettings)
@@ -90,13 +51,17 @@ def main(settings: ExperimentSettings) -> None:
     wandb.login()
     wandb.init(
         project="advopt-input-only",
-        config=omegaconf.OmegaConf.to_container(settings),
+        config=omegaconf.OmegaConf.to_container(settings, resolve=True),
         mode="online" if settings.use_wandb else "disabled",
         name=settings.wandb_run_name,
         group=settings.wandb_group_name,
     )
 
-    experiment_data = get_experiment_data_cached(task_name=settings.task.task_name)
+    experiment_data = (
+        get_experiment_data_cached(task_name=settings.task.task_name)
+        if settings.use_experiment_cache
+        else get_standard_experiment_data(task_name=settings.task.task_name)
+    )
     experiment_data.masked_runner.masked_transformer.freeze_weights()
 
     # stack test_data and validation_data
@@ -104,6 +69,7 @@ def main(settings: ExperimentSettings) -> None:
         [experiment_data.task_data.test_data, experiment_data.task_data.validation_data]
     )
     base_input_embedded = experiment_data.masked_runner.masked_transformer.model.embed(base_input)
+    artifacts.base_input = base_input
 
     patch_input = experiment_data.task_data.test_patch_data[0, ...]
     dummy_input = experiment_data.task_data.test_data[0, ...]
@@ -152,10 +118,9 @@ def main(settings: ExperimentSettings) -> None:
             patch_input=patch_input,
             edges_to_ablate=[],
         )
-        negative_loss = -1 * kl_div_on_output_logits(
+        negative_loss = -1 * experiment_data.loss_fn(
             circuit_output,
             full_output,
-            last_sequence_position_only=experiment_data.metric_last_sequence_position_only,
         )
         negative_loss.backward()
         optimizer.step()

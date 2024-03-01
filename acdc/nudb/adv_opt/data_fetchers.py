@@ -1,13 +1,17 @@
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 from typing import Callable
 
+import torch
+from jaxtyping import Float
 from transformer_lens import HookedTransformer
 
 from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_docstring_subgraph_true_edges
 from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
 from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
+from acdc.nudb.adv_opt.loss_fn import kl_div_on_output_logits
 from acdc.nudb.adv_opt.masked_runner import MaskedRunner
 from acdc.nudb.adv_opt.utils import device
 from acdc.TLACDCEdge import Edge, IndexedHookPointName
@@ -23,12 +27,22 @@ class AdvOptExperimentData:
     task_data: AllDataThings
     circuit_edges: list[Edge]
     masked_runner: MaskedRunner
-    metric_last_sequence_position_only: bool = False
+    loss_fn: Callable[
+        [Float[torch.Tensor, "batch pos vocab"], Float[torch.Tensor, "batch pos vocab"]], Float[torch.Tensor, " batch"]
+    ]
 
     @property
     def ablated_edges(self) -> set[Edge]:
         # see comment at the bottom of this file about why I believe this works.
         return self.masked_runner.all_ablatable_edges - set(self.circuit_edges)
+
+    @property
+    def tokenizer(self):
+        return self.masked_runner.masked_transformer.model.tokenizer
+
+    @property
+    def embedder(self) -> torch.nn.Module:
+        return self.masked_runner.masked_transformer.model.embed
 
 
 class AdvOptDataProvider(ABC):
@@ -64,7 +78,9 @@ class ACDCAdvOptDataProvider(AdvOptDataProvider):
             task_data=task_data,
             circuit_edges=edge_tuples_to_dataclass(true_edges),
             masked_runner=MaskedRunner(model=task_data.tl_model),
-            metric_last_sequence_position_only=self.metric_last_sequence_position_only,
+            loss_fn=partial(
+                kl_div_on_output_logits, last_sequence_position_only=self.metric_last_sequence_position_only
+            ),
         )
 
 

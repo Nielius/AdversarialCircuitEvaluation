@@ -128,7 +128,9 @@ class MaskedRunner:
         edges_to_ablate: list[Edge],
     ) -> Num[torch.Tensor, "batch pos vocab"]:
         """If 'patch_input' is None, do not recalculate the ablation cache.
-        Instead, use the ablation cache that has already been calculated."""
+        Instead, use the ablation cache that has already been calculated.
+        This is necessary for the 'run_with_linear_combination' method, but
+        can also be useful for performance reason."""
         with self.with_ablated_edges(patch_input=patch_input, edges_to_ablate=edges_to_ablate) as hooked_model:
             return hooked_model(input)
 

@@ -8,3 +8,5 @@ wandb_group_name: !!null
 hydra:
   run:
     dir: ./outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}
+  sweep:
+    dir: ./outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}

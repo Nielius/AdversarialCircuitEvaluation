@@ -1,0 +1,10 @@
+# @package _global_
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      num_epochs: 2200
+      random_seed: 4323,4324,4325,4326
+      use_wandb: True
+  sweep:
+    subdir: ${random_seed}

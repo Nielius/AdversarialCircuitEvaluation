@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+    - settings_schema
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task_name: GREATERTHAN,IOI
+  sweep:
+    subdir: ${task_name}

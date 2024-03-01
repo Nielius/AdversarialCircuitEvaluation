@@ -8,7 +8,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
-import torch.nn.functional as F
 from jaxtyping import Float
 
 from acdc.nudb.adv_opt.data_fetchers import AdvOptExperimentData, AdvOptTaskName, get_standard_experiment_data
@@ -18,39 +17,6 @@ from acdc.TLACDCEdge import Edge
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(level=logging.DEBUG)
-
-
-def kl_div_on_output_logits(
-    base_output_logits: Float[torch.Tensor, "batch pos vocab"],
-    other_output_logits: Float[torch.Tensor, "batch pos vocab"],
-    last_sequence_position_only: bool,
-):
-    assert base_output_logits.shape == other_output_logits.shape
-    assert len(base_output_logits.shape) == 3  # batch, pos, vocab
-
-    if last_sequence_position_only:
-        # depending on the task, we only want to take the last sequence position or not.
-        # E.g. for the reverse task, every sequence position matters.
-        # But for e.g. the docstring task, we only want to get the metrics
-        # from the final sequence position.
-        metrics = F.kl_div(
-            F.log_softmax(other_output_logits[:, -1, :], dim=-1),
-            F.log_softmax(base_output_logits[:, -1, :], dim=-1),
-            reduction="none",
-            log_target=True,
-        ).mean(dim=-1)
-    else:
-        metrics = (
-            F.kl_div(
-                F.log_softmax(other_output_logits, dim=-1),
-                F.log_softmax(base_output_logits, dim=-1),
-                reduction="none",
-                log_target=True,
-            )
-            .mean(dim=-1)
-            .mean(dim=-1)
-        )  # mean over sequence position and output logit
-    return metrics
 
 
 @dataclass
@@ -88,8 +54,9 @@ class CircuitPerformanceDistributionExperiment:
             edges_to_ablate=[],
         )
 
-        return kl_div_on_output_logits(
-            base_output_logits, masked_output_logits, self.experiment_data.metric_last_sequence_position_only
+        return self.experiment_data.loss_fn(
+            base_output_logits,
+            masked_output_logits,
         )
 
     def random_circuit(self) -> list[Edge]:
