@@ -202,8 +202,8 @@ def cleanup():
 
 def shuffle_tensor(tens, seed=42):
     """Shuffle tensor along first dimension"""
-    torch.random.manual_seed(seed)
-    return tens[torch.randperm(tens.shape[0])]
+    rng = torch.Generator().manual_seed(seed)
+    return tens[torch.randperm(tens.shape[0], generator=rng)]
 
 
 def ct():

@@ -874,17 +874,17 @@ def docstring_prompt_gen(
     arg_desc_len: int = 4,  # number of words in each arg desc
     seed: int = 42,
 ) -> Prompt:
-    random.seed(seed)
+    rng = random.Random(seed)
 
     assert style in ["rest", "goog"]
     if pred_nth_arg is None:
         # predict the last arg
         pred_nth_arg = n_args - 1
 
-    met_name, *def_args = random.sample(variable_names, 1 + n_args)
+    met_name, *def_args = rng.sample(variable_names, 1 + n_args)
     clean_doc_args = def_args[:pred_nth_arg]
-    met_desc_words = random.sample(common_single_token_nouns, met_desc_len)
-    doc_args_desc_words = [random.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args]
+    met_desc_words = rng.sample(common_single_token_nouns, met_desc_len)
+    doc_args_desc_words = [rng.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args]
 
     clean_prompt = docstring_prompt_templ(
         style,
@@ -900,7 +900,7 @@ def docstring_prompt_gen(
 
     random_order_doc_args = list(clean_doc_args)
     while random_order_doc_args == clean_doc_args:
-        random.shuffle(random_order_doc_args)
+        rng.shuffle(random_order_doc_args)
     random_order_prompt = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -920,9 +920,9 @@ def docstring_prompt_gen(
         doc_args_desc_words=doc_args_desc_words,
     )
 
-    rand_def_args = random.sample(variable_names, n_args)
+    rand_def_args = rng.sample(variable_names, n_args)
     while rand_def_args in def_args:
-        rand_def_args = random.sample(variable_names, n_args)
+        rand_def_args = rng.sample(variable_names, n_args)
     shift1_doc_random_def = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -932,7 +932,7 @@ def docstring_prompt_gen(
         doc_args_desc_words=doc_args_desc_words,
     )
 
-    random_doc_doc_args = random.sample(variable_names, pred_nth_arg)
+    random_doc_doc_args = rng.sample(variable_names, pred_nth_arg)
     random_doc_prompt = docstring_prompt_templ(
         style,
         met_name=met_name,
@@ -942,9 +942,9 @@ def docstring_prompt_gen(
         doc_args_desc_words=doc_args_desc_words,
     )
 
-    random_def_arg = random.choice(variable_names)
+    random_def_arg = rng.choice(variable_names)
     while random_def_arg in def_args:
-        random_def_arg = random.choice(variable_names)
+        random_def_arg = rng.choice(variable_names)
     swap_random_def_args = def_args[:pred_nth_arg] + [random_def_arg] + def_args[pred_nth_arg + 1 :]
     swap_random_prompt = docstring_prompt_templ(
         style,
@@ -964,7 +964,7 @@ def docstring_prompt_gen(
         doc_args_desc_words=doc_args_desc_words,
     )
 
-    # doc_args_desc_words_random_len = [random.sample(common_single_token_nouns, random.randint(1, 2*arg_desc_len)) for _ in clean_doc_args]
+    # doc_args_desc_words_random_len = [rng.sample(common_single_token_nouns, rng.randint(1, 2*arg_desc_len)) for _ in clean_doc_args]
     # doc_args_desc_words_random_len_prompt = docstring_prompt_templ(
     #    style,
     #    met_name=met_name,
@@ -1003,10 +1003,10 @@ def docstring_induction_prompt_generator(
 ) -> Prompt:
     assert style in ["rest", "goog"]
 
-    random.seed(seed)
+    rng = random.Random(seed)
 
     n_not_matching_args = n_matching_args - 1
-    met_name, *all_args = random.sample(
+    met_name, *all_args = rng.sample(
         variable_names,
         2
         + n_matching_args
@@ -1033,8 +1033,8 @@ def docstring_induction_prompt_generator(
 
     clean_def_args = def_prefix_args + matching_args + def_suffix_args
     clean_doc_args = doc_prefix_args + matching_args[:-1]
-    met_desc_words = random.sample(common_single_token_nouns, met_desc_len)
-    doc_args_desc_words = [random.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args]
+    met_desc_words = rng.sample(common_single_token_nouns, met_desc_len)
+    doc_args_desc_words = [rng.sample(common_single_token_nouns, arg_desc_len) for _ in clean_doc_args]
 
     clean_prompt = docstring_prompt_templ(
         style,
@@ -1119,7 +1119,7 @@ def docstring_induction_prompt_generator(
     vary_length_doc_desc = [[doc_args_desc_words[i][0]] for i in range(len(clean_doc_args))]
     for i in range(len(clean_doc_args)):
         for j in range(1, len(doc_args_desc_words[i])):
-            k = random.randint(0, len(clean_doc_args) - 1)
+            k = rng.randint(0, len(clean_doc_args) - 1)
             vary_length_doc_desc[k].append(doc_args_desc_words[i][j])
 
     vary_length_doc_desc_prompt = docstring_prompt_templ(

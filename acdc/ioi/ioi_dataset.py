@@ -6,7 +6,6 @@ It is a very slightly edited version of https://github.com/redwoodresearch/Easy-
 
 import copy
 import random
-import re
 import warnings
 from typing import Union
 
@@ -251,30 +250,7 @@ ANIMALS = [
 ]
 
 
-def multiple_replace(dict, text):
-    # from: https://stackoverflow.com/questions/15175142/how-can-i-do-multiple-substitutions-using-regex
-    # Create a regular expression from the dictionary keys
-    regex = re.compile("(%s)" % "|".join(map(re.escape, dict.keys())))
-
-    # For each match, look-up corresponding value in dictionary
-    return regex.sub(lambda mo: dict[mo.string[mo.start() : mo.end()]], text)
-
-
-def iter_sample_fast(iterable, samplesize, seed):
-    random.seed(seed)
-    results = []
-    # Fill in the first samplesize elements:
-    try:
-        for _ in range(samplesize):
-            results.append(next(iterable))
-    except StopIteration:
-        raise ValueError("Sample larger than population.")
-    random.shuffle(results)  # Randomize their positions
-
-    return results
-
-
-NOUNS_DICT = NOUNS_DICT = {"[PLACE]": PLACES, "[OBJECT]": OBJECTS}
+NOUNS_DICT = {"[PLACE]": PLACES, "[OBJECT]": OBJECTS}
 
 
 def gen_prompt_uniform(
@@ -288,33 +264,33 @@ def gen_prompt_uniform(
     seed=None,
 ):
     assert seed is not None
-    random.seed(seed)
+    rng = random.Random(seed)
 
     nb_gen = 0
     ioi_prompts = []
     while nb_gen < N:
-        temp = random.choice(templates)
+        temp = rng.choice(templates)
         temp_id = templates.index(temp)
         name_1 = ""
         name_2 = ""
         name_3 = ""
         while len(set([name_1, name_2, name_3])) < 3:
-            name_1 = random.choice(names)
-            name_2 = random.choice(names)
-            name_3 = random.choice(names)
+            name_1 = rng.choice(names)
+            name_2 = rng.choice(names)
+            name_3 = rng.choice(names)
 
         nouns = {}
         ioi_prompt = {}
         for k in nouns_dict:
-            nouns[k] = random.choice(nouns_dict[k])
+            nouns[k] = rng.choice(nouns_dict[k])
             ioi_prompt[k] = nouns[k]
         prompt = temp
         for k in nouns_dict:
             prompt = prompt.replace(k, nouns[k])
 
         if prefixes is not None:
-            L = random.randint(30, 40)
-            pref = ".".join(random.choice(prefixes).split(".")[:L])
+            L = rng.randint(30, 40)
+            pref = ".".join(rng.choice(prefixes).split(".")[:L])
             pref += "<|endoftext|>"
         else:
             pref = ""
@@ -355,7 +331,7 @@ def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
     """
 
     assert seed is not None
-    np.random.seed(seed)
+    np_rng: np.random.Generator = np.random.default_rng(seed)
 
     flipped_prompts = []
 
@@ -369,24 +345,24 @@ def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
                 prompt["IO"] = prompt["S"]
                 prompt["S"] = temp
             elif flip[1] == "RAND":
-                rand_name = names[np.random.randint(len(names))]
+                rand_name = names[np_rng.integers(len(names))]
                 while rand_name == prompt["IO"] or rand_name == prompt["S"]:
-                    rand_name = names[np.random.randint(len(names))]
+                    rand_name = names[np_rng.integers(len(names))]
                 t[len(t) - t[::-1].index(prompt["S"]) - 1] = rand_name
             else:
                 raise ValueError("Invalid flip[1] value")
 
         elif flip[0] == "IO":
             if flip[1] == "RAND":
-                rand_name = names[np.random.randint(len(names))]
+                rand_name = names[np_rng.integers(len(names))]
                 while rand_name == prompt["IO"] or rand_name == prompt["S"]:
-                    rand_name = names[np.random.randint(len(names))]
+                    rand_name = names[np_rng.integers(len(names))]
 
                 t[t.index(prompt["IO"])] = rand_name
                 t[t.index(prompt["IO"])] = rand_name
                 prompt["IO"] = rand_name
             elif flip[1] == "ANIMAL":
-                rand_animal = ANIMALS[np.random.randint(len(ANIMALS))]
+                rand_animal = ANIMALS[np_rng.integers(len(ANIMALS))]
                 t[t.index(prompt["IO"])] = rand_animal
                 prompt["IO"] = rand_animal
                 # print(t)
@@ -402,9 +378,9 @@ def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
 
         elif flip[0] in ["S", "S1"]:
             if flip[1] == "ANIMAL":
-                new_s = ANIMALS[np.random.randint(len(ANIMALS))]
+                new_s = ANIMALS[np_rng.integers(len(ANIMALS))]
             if flip[1] == "RAND":
-                new_s = names[np.random.randint(len(names))]
+                new_s = names[np_rng.integers(len(names))]
             t[t.index(prompt["S"])] = new_s
             if flip[0] == "S":  # literally just change the first S if this is S1
                 t[len(t) - t[::-1].index(prompt["S"]) - 1] = new_s
@@ -456,7 +432,7 @@ def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
                 t[t.index(prompt["S"]) + 1] = [
                     "with one friend named",
                     "accompanied by",
-                ][np.random.randint(2)]
+                ][np_rng.integers(2)]
             else:
                 t[t.index(prompt["S"]) + 1] = (
                     t[t.index(prompt["S"])] + ", after a great day, " + t[t.index(prompt["S"]) + 1]
@@ -816,7 +792,7 @@ class IOIDataset:
             # prompts[-1]["[OBJECT]"] = metadata["[OBJECT]"]
         return IOIDataset(prompt_type=templates, prompts=prompts, **kwargs)
 
-    def gen_flipped_prompts(self, flip, seed=None):
+    def gen_flipped_prompts(self, flip, seed=None) -> "IOIDataset":
         """
         Return a IOIDataset where the name to flip has been replaced by a random name.
         """
