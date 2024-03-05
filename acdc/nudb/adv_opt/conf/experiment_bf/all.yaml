@@ -1,0 +1,7 @@
+# @package _global_
+# Run with python acdc/nudb/adv_opt/main_circuit_performance_distribution.py +experiment_bf=all
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task: tracr_reverse,docstring,greaterthan,ioi

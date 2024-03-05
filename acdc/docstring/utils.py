@@ -62,36 +62,16 @@ def get_all_docstring_things(
 ) -> AllDataThings:
     tl_model = get_docstring_model(device=device)
 
-    docstring_ind_prompt_kwargs = dict(
-        n_matching_args=3,
-        n_def_prefix_args=2,
-        n_def_suffix_args=1,
-        n_doc_prefix_args=0,
-        met_desc_len=3,
-        arg_desc_len=2,
-    )
-
-    raw_prompts = [
-        prompts.docstring_induction_prompt_generator("rest", **docstring_ind_prompt_kwargs, seed=i)
-        for i in range(num_examples * 2)
-    ]
-    batched_prompts = prompts.BatchedPrompts(prompts=raw_prompts, model=tl_model)
-    toks_int_values = batched_prompts.clean_tokens
-    toks_int_values_other = batched_prompts.corrupt_tokens[dataset_version]
-    toks_int_labels = batched_prompts.correct_tokens.squeeze(-1)
-    toks_int_wrong_labels = batched_prompts.wrong_tokens
-    assert toks_int_labels.ndim == 1
-    assert toks_int_wrong_labels.ndim == 2
-
-    validation_data = toks_int_values[:num_examples]
-    validation_labels = toks_int_labels[:num_examples]
-    validation_wrong_labels = toks_int_wrong_labels[:num_examples]
-    validation_patch_data = toks_int_values_other[:num_examples]
-
-    test_data = toks_int_values[num_examples:]
-    test_labels = toks_int_labels[num_examples:]
-    test_wrong_labels = toks_int_wrong_labels[num_examples:]
-    test_patch_data = toks_int_values_other[num_examples:]
+    (
+        test_data,
+        test_labels,
+        test_patch_data,
+        test_wrong_labels,
+        validation_data,
+        validation_labels,
+        validation_patch_data,
+        validation_wrong_labels,
+    ) = get_docstring_data(tl_model, num_examples, dataset_version)
 
     with torch.no_grad():
         base_validation_logprobs = F.log_softmax(tl_model(validation_data)[:, -1], dim=-1)
@@ -229,6 +209,50 @@ def get_all_docstring_things(
         test_labels=test_labels,
         test_mask=None,
         test_patch_data=test_patch_data,
+    )
+
+
+def get_docstring_data(tl_model: HookedTransformer, num_examples: int, dataset_version: str):
+    docstring_ind_prompt_kwargs = dict(
+        n_matching_args=3,
+        n_def_prefix_args=2,
+        n_def_suffix_args=1,
+        n_doc_prefix_args=0,
+        met_desc_len=3,
+        arg_desc_len=2,
+    )
+    raw_prompts = [
+        prompts.docstring_induction_prompt_generator("rest", **docstring_ind_prompt_kwargs, seed=i)
+        for i in range(num_examples * 2)
+    ]
+    batched_prompts = prompts.BatchedPrompts(prompts=raw_prompts, model=tl_model)
+
+    toks_int_values = batched_prompts.clean_tokens
+    toks_int_values_other = batched_prompts.corrupt_tokens[dataset_version]
+    toks_int_labels = batched_prompts.correct_tokens.squeeze(-1)
+    toks_int_wrong_labels = batched_prompts.wrong_tokens
+    assert toks_int_labels.ndim == 1
+    assert toks_int_wrong_labels.ndim == 2
+
+    validation_data = toks_int_values[:num_examples]
+    validation_labels = toks_int_labels[:num_examples]
+    validation_wrong_labels = toks_int_wrong_labels[:num_examples]
+    validation_patch_data = toks_int_values_other[:num_examples]
+
+    test_data = toks_int_values[num_examples:]
+    test_labels = toks_int_labels[num_examples:]
+    test_wrong_labels = toks_int_wrong_labels[num_examples:]
+    test_patch_data = toks_int_values_other[num_examples:]
+
+    return (
+        test_data,
+        test_labels,
+        test_patch_data,
+        test_wrong_labels,
+        validation_data,
+        validation_labels,
+        validation_patch_data,
+        validation_wrong_labels,
     )
 
 

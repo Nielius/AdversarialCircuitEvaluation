@@ -1,22 +1,53 @@
-import datetime
-import itertools
 import json
 import logging
 import random
-from dataclasses import dataclass
+import typing
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import hydra
 import torch
+import torch.utils.data
+from hydra.core import hydra_config
+from hydra.core.config_store import ConfigStore
 from jaxtyping import Float
+from tqdm import tqdm
 
 from acdc.nudb.adv_opt.data_fetchers import AdvOptExperimentData, AdvOptTaskName, get_standard_experiment_data
-from acdc.nudb.adv_opt.utils import CIRCUITBENCHMARKS_DATA_DIR, device
+from acdc.nudb.adv_opt.edge_serdes import EdgeJSONDecoder, EdgeJSONEncoder
+from acdc.nudb.adv_opt.settings import TaskSpecificSettings, TracrReverseTaskSpecificSettings
+from acdc.nudb.adv_opt.utils import device
 from acdc.TLACDCEdge import Edge
 
 logger = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.DEBUG)
+
+class CirctuitType(str, Enum):
+    RANDOM = "random"
+    CANONICAL = "canonical"
+    CORRUPTED_CANONICAL = "corrupted_canonical"
+    FULL_MODEL = "full_model"
+
+
+@dataclass
+class BruteForceExperimentSettings:
+    """Settings for the brute force experiment."""
+
+    task: TaskSpecificSettings
+    batch_size: int = 256
+    optimize_over_patch_data: bool = True
+    circuits: list[CirctuitType] = field(
+        default_factory=lambda: [CirctuitType.RANDOM, CirctuitType.CANONICAL, CirctuitType.CORRUPTED_CANONICAL]
+    )
+
+
+cs = ConfigStore.instance()
+cs.store(name="config_schema", node=BruteForceExperimentSettings)
+# Not sure if/why you need to add the two lines below. Maybe just for checking that config schema?
+# (I'm now 80% sure that these things are only for schema matching.)
+cs.store(group="task", name="greaterthan_schema", node=TaskSpecificSettings)
+cs.store(group="task", name="tracr_reverse_schema", node=TracrReverseTaskSpecificSettings)
 
 
 @dataclass
@@ -32,6 +63,12 @@ class CircuitPerformanceDistributionExperiment:
     def calculate_circuit_performance_for_large_sample(
         self,
         circuit: list[Edge],
+        data_loader: torch.utils.data.DataLoader[
+            tuple[
+                Float[torch.Tensor, "batch pos vocab"],
+                Float[torch.Tensor, "batch pos vocab"],
+            ]
+        ],  # tuples of (input, patch_input)
     ) -> Float[torch.Tensor, " batch"]:
         """
         Run and calculate an individual circuit performance metrics for each input in `test_data`.
@@ -43,21 +80,29 @@ class CircuitPerformanceDistributionExperiment:
         Otherwise, the average metric will be calculated across all sequence positions.
 
         """
-        masked_output_logits: Float[torch.Tensor, "batch pos vocab"] = self.experiment_data.masked_runner.run(
-            input=self.experiment_data.task_data.test_data,
-            patch_input=self.experiment_data.task_data.test_patch_data,
-            edges_to_ablate=list(self.experiment_data.masked_runner.all_ablatable_edges - set(circuit)),
-        )
-        base_output_logits: Float[torch.Tensor, "batch pos vocab"] = self.experiment_data.masked_runner.run(
-            input=self.experiment_data.task_data.test_data,
-            patch_input=self.experiment_data.task_data.test_patch_data,
-            edges_to_ablate=[],
-        )
 
-        return self.experiment_data.loss_fn(
-            base_output_logits,
-            masked_output_logits,
-        )
+        def process_batch(
+            batch: tuple[Float[torch.Tensor, "batch pos vocab"], Float[torch.Tensor, "batch pos vocab"]],
+        ) -> Float[torch.Tensor, " batch"]:
+            input, patch_input = batch
+
+            masked_output_logits: Float[torch.Tensor, "batch pos vocab"] = self.experiment_data.masked_runner.run(
+                input=input,
+                patch_input=patch_input,
+                edges_to_ablate=list(self.experiment_data.masked_runner.all_ablatable_edges - set(circuit)),
+            )
+            base_output_logits: Float[torch.Tensor, "batch pos vocab"] = self.experiment_data.masked_runner.run(
+                input=input,
+                patch_input=patch_input,
+                edges_to_ablate=[],
+            )
+
+            return self.experiment_data.loss_fn(
+                base_output_logits,
+                masked_output_logits,
+            )
+
+        return torch.cat([process_batch(batch) for batch in tqdm(data_loader)])
 
     def random_circuit(self) -> list[Edge]:
         """TODO: this can be made smarter; e.g., we probably don't want to leave dangling nodes."""
@@ -74,22 +119,17 @@ class CircuitPerformanceDistributionExperiment:
 class CircuitPerformanceDistributionResults:
     experiment_name: AdvOptTaskName
     metrics: dict[str, Float[torch.Tensor, " batch"]]
-    topk_most_adversarial_values: list[float]
-    topk_most_adversarial_input: list[str]
+    test_data: Float[torch.Tensor, "batch pos vocab"]
+    test_patch_data: Float[torch.Tensor, "batch pos vocab"]
+    random_circuit: list[Edge]
 
     def save(self, artifact_dir: Path):
-        storage_dir = artifact_dir / self.experiment_name
-        storage_dir.mkdir()
+        artifact_dir.mkdir()
         for key, value in self.metrics.items():
-            torch.save(value, storage_dir / f"metrics_{key}.pt")
-        (storage_dir / "topk_most_adversarial.json").write_text(
-            json.dumps(
-                {
-                    "topk_most_adversarial_values": self.topk_most_adversarial_values,
-                    "topk_most_adversarial_input": self.topk_most_adversarial_input,
-                }
-            )
-        )
+            torch.save(value, artifact_dir / f"metrics_{key}.pt")
+        torch.save(self.test_data, artifact_dir / "test_data.pt")
+        torch.save(self.test_patch_data, artifact_dir / "test_patch_data.pt")
+        (artifact_dir / "random_circuit.json").write_text(json.dumps(self.random_circuit, cls=EdgeJSONEncoder))
 
     @classmethod
     def load(cls, artifact_dir: Path, experiment_name: AdvOptTaskName) -> "CircuitPerformanceDistributionResults":
@@ -103,120 +143,95 @@ class CircuitPerformanceDistributionResults:
                 for filename in storage_dir.glob("metrics_*.pt")
                 if (key := filename.removesuffix(".pt").removeprefix("metrics_"))
             },  # torch.load(storage_dir / "metrics.pt"),
-            **json.loads((storage_dir / "topk_most_adversarial.json").read_text()),
+            test_data=torch.load(storage_dir / "test_data.pt"),
+            test_patch_data=torch.load(storage_dir / "test_patch_data.pt"),
+            random_circuit=json.loads((storage_dir / "random_circuit.json").read_text(), cls=EdgeJSONDecoder),
         )
 
     def print(self):
         print(f"Experiment: {self.experiment_name}")
         print(f"Metrics: {self.metrics}")
-        print(f"Topk most adversarial values: {self.topk_most_adversarial_values}")
-        print(f"Topk most adversarial input: {self.topk_most_adversarial_input}")
+        # print(f"Topk most adversarial values: {self.topk_most_adversarial_values}")
+        # print(f"Topk most adversarial inputs: {self.topk_most_adversarial_input}")
 
 
+@hydra.main(config_path="conf", config_name="config_bruteforce", version_base=None)
 def main_for_plotting_three_experiments(
-    experiment_name: AdvOptTaskName,
-    artifact_dir: Path,
-    include_full_circuit: bool = False,  # this is only intended as a sanity check
+    settings: BruteForceExperimentSettings,
 ) -> CircuitPerformanceDistributionResults:
+    experiment_name = settings.task.task_name
+    output_base_dir = Path(hydra_config.HydraConfig.get().runtime.output_dir)
+    artifact_dir = output_base_dir / "artifacts"
     logger.info("Starting plotting experiment for '%s'.", experiment_name)
+    logger.info("Storing output in %s; going to run circuits %s", output_base_dir, settings.circuits)
+
     experiment = CircuitPerformanceDistributionExperiment(experiment_data=get_standard_experiment_data(experiment_name))
 
-    if include_full_circuit:
-        logger.info("Running with all edges")
-        metrics_with_full_model = experiment.calculate_circuit_performance_for_large_sample(
-            circuit=list(experiment.experiment_data.masked_runner.all_ablatable_edges)
+    def create_cartesian_product(
+        test_data: torch.Tensor, test_patch_data: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return (
+            torch.repeat_interleave(test_data, len(test_patch_data), dim=0),
+            torch.cat(len(test_data) * [test_patch_data]),
+        )
+
+    test_data, test_patch_data = (
+        (experiment.experiment_data.task_data.test_data, experiment.experiment_data.task_data.test_patch_data)
+        if not settings.optimize_over_patch_data
+        else create_cartesian_product(
+            experiment.experiment_data.task_data.test_data, experiment.experiment_data.task_data.test_patch_data
+        )
+    )
+
+    data_loader = typing.cast(
+        torch.utils.data.DataLoader[
+            tuple[Float[torch.Tensor, "batch pos vocab"], Float[torch.Tensor, "batch pos vocab"]]
+        ],
+        torch.utils.data.DataLoader(
+            dataset=torch.utils.data.TensorDataset(test_data, test_patch_data),
+            batch_size=settings.batch_size,
+        ),
+    )
+
+    collected_metrics: dict[CirctuitType, Float[torch.Tensor, " batch"]] = {}
+
+    random_circuit = experiment.random_circuit()
+
+    def get_circuit_edges(circuit_type: CirctuitType) -> list[Edge]:
+        match circuit_type:
+            case CirctuitType.RANDOM:
+                return random_circuit
+            case CirctuitType.CANONICAL:
+                return experiment.experiment_data.circuit_edges
+            case CirctuitType.FULL_MODEL:
+                return list(experiment.experiment_data.masked_runner.all_ablatable_edges)
+            case CirctuitType.CORRUPTED_CANONICAL:
+                return experiment.canonical_circuit_with_random_edges_removed(2)
+            case _:
+                raise ValueError(f"Unknown circuit type: {circuit_type}")
+
+    for circuit in settings.circuits:
+        logger.info(f"Running with circuit {circuit}")
+        metrics_for_circuit = experiment.calculate_circuit_performance_for_large_sample(
+            circuit=get_circuit_edges(circuit),
+            data_loader=data_loader,
         ).to("cpu")
         # regarding '.to("cpu")': torch.histogram does not work for CUDA, so moving to CPU
         # see https://github.com/pytorch/pytorch/issues/69519
-
-    logger.info("Running with canonical circuit")
-    metrics_with_canonical_circuit = experiment.calculate_circuit_performance_for_large_sample(
-        circuit=experiment.experiment_data.circuit_edges
-    ).to("cpu")
-
-    logger.info("Running with a random circuit")
-    metrics_with_random_circuit = experiment.calculate_circuit_performance_for_large_sample(
-        circuit=experiment.random_circuit()
-    ).to("cpu")
-
-    logger.info("Running with the canonical circuit, but with 2 random edges removed")
-    metrics_with_corrupted_canonical_circuit = experiment.calculate_circuit_performance_for_large_sample(
-        circuit=experiment.canonical_circuit_with_random_edges_removed(2)
-    ).to("cpu")
-
-    def plot():
-        # plot histogram of output
-        fig, axes = plt.subplots(2, 2, sharex=True, sharey=True)  # Create a figure containing a single axes.
-        ((ax_all, ax_1), (ax_2, ax_3)) = axes
-        range = (
-            0,
-            max(
-                # metrics_with_full_model.max().item(),  # can safely exclude this, as it's always supposed to be 0
-                metrics_with_canonical_circuit.max().item(),
-                metrics_with_random_circuit.max().item(),
-                metrics_with_corrupted_canonical_circuit.max().item(),
-            ),
-        )
-        if include_full_circuit:
-            ax_all.stairs(*torch.histogram(metrics_with_full_model, bins=100, range=range), label="full model")
-        ax_all.stairs(
-            *torch.histogram(metrics_with_canonical_circuit, bins=100, range=range), label="canonical circuit"
-        )
-        ax_all.stairs(*torch.histogram(metrics_with_random_circuit, bins=100, range=range), label="random circuit")
-        ax_all.stairs(
-            *torch.histogram(metrics_with_corrupted_canonical_circuit, bins=100, range=range),
-            label="corrupted canonical circuit",
-        )
-        fig.suptitle(
-            f"KL divergence between output of the full model and output of a circuit, for {experiment_name}, histogram"
-        )
-        ax_1.stairs(*torch.histogram(metrics_with_canonical_circuit, bins=100, range=range), label="canonical circuit")
-        ax_2.stairs(*torch.histogram(metrics_with_random_circuit, bins=100, range=range), label="random circuit")
-        ax_3.stairs(
-            *torch.histogram(metrics_with_corrupted_canonical_circuit, bins=100, range=range),
-            label="corrupted canonical circuit",
-        )
-        for ax in itertools.chain(*axes):
-            ax.set_xlabel("KL divergence")
-            ax.set_ylabel("Frequency")
-            ax.legend()
-
-        plot_dir = artifact_dir / "plots"
-        plot_dir.mkdir(exist_ok=True)
-        figure_path = plot_dir / f"{experiment_name}_histogram_{datetime.datetime.now().isoformat()}.png"
-        fig.savefig(figure_path)
-        logger.info("Saved histogram to %s", figure_path)
-
-    plot()
-
-    topk_most_adversarial = torch.topk(metrics_with_random_circuit, k=5, sorted=True)
-    topk_most_adversarial_input = experiment.experiment_data.task_data.test_data[topk_most_adversarial.indices, :]
-
-    if experiment.experiment_data.masked_runner.masked_transformer.model.tokenizer is not None:
-        # decode if a tokenizer is given
-        topk_most_adversarial_input = [
-            experiment.experiment_data.masked_runner.masked_transformer.model.tokenizer.decode(input)
-            for input in topk_most_adversarial_input
-        ]
-    else:
-        topk_most_adversarial_input = topk_most_adversarial_input.tolist()
+        collected_metrics[circuit] = metrics_for_circuit
 
     results = CircuitPerformanceDistributionResults(
         experiment_name=experiment_name,
-        metrics={
-            "random": metrics_with_random_circuit,
-        },
-        topk_most_adversarial_values=topk_most_adversarial.values.tolist(),
-        topk_most_adversarial_input=topk_most_adversarial_input,
+        metrics=collected_metrics,
+        test_data=test_data,
+        test_patch_data=test_patch_data,
+        random_circuit=random_circuit,
     )
 
     results.save(artifact_dir)
     results.print()
 
-    # Debugging code: decode the input data with tokenizer
-    # experiment.experiment_data.masked_runner.masked_transformer.model.tokenizer.decode(
-    #     experiment.experiment_data.task_data.test_data[0]
-    # )
+    logger.info("Output stored in %s", output_base_dir)
 
     return results
 
@@ -224,11 +239,4 @@ def main_for_plotting_three_experiments(
 if __name__ == "__main__":
     logger.info("Using device %s", device)
 
-    artifact_dir = CIRCUITBENCHMARKS_DATA_DIR / f"run_{datetime.datetime.now().isoformat().replace(':', '-')}"
-    artifact_dir.mkdir(exist_ok=True)
-
-    # main_for_tracr_proportion()
-    main_for_plotting_three_experiments(AdvOptTaskName.TRACR_REVERSE, artifact_dir)
-    main_for_plotting_three_experiments(AdvOptTaskName.DOCSTRING, artifact_dir)
-    main_for_plotting_three_experiments(AdvOptTaskName.GREATERTHAN, artifact_dir)
-    main_for_plotting_three_experiments(AdvOptTaskName.IOI, artifact_dir)
+    main_for_plotting_three_experiments()

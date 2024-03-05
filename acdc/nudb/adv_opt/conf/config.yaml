@@ -7,6 +7,6 @@ wandb_run_name: "${oc.decode:${task.task_name}}_${num_epochs}"
 wandb_group_name: !!null
 hydra:
   run:
-    dir: ./outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}
+    dir: ${oc.env:ACDC_OUTPUT_DIR, .}/outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}
   sweep:
-    dir: ./outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}
+    dir: ${oc.env:ACDC_OUTPUT_DIR, .}/outputs/${now:%Y-%m-%d}-${now:%H%M%S}-${wandb_run_name}
