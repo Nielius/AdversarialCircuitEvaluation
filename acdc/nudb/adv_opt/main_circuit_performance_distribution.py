@@ -132,19 +132,21 @@ class CircuitPerformanceDistributionResults:
         (artifact_dir / "random_circuit.json").write_text(json.dumps(self.random_circuit, cls=EdgeJSONEncoder))
 
     @classmethod
-    def load(cls, artifact_dir: Path, experiment_name: AdvOptTaskName) -> "CircuitPerformanceDistributionResults":
-        storage_dir = artifact_dir / experiment_name
+    def load(
+        cls, artifact_dir: Path, experiment_name: AdvOptTaskName, append_exp_name_to_dir: bool = True
+    ) -> "CircuitPerformanceDistributionResults":
+        storage_dir = artifact_dir / experiment_name if append_exp_name_to_dir else artifact_dir
 
         return cls(
             experiment_name=experiment_name,
             metrics={
                 # load all metrics with torch.load by walking through the file names
-                key: torch.load(storage_dir / f"metrics_{key}.pt")
+                key: torch.load(storage_dir / f"metrics_{key}.pt", map_location=device)
                 for filename in storage_dir.glob("metrics_*.pt")
-                if (key := filename.removesuffix(".pt").removeprefix("metrics_"))
+                if (key := filename.stem.removeprefix("metrics_"))
             },  # torch.load(storage_dir / "metrics.pt"),
-            test_data=torch.load(storage_dir / "test_data.pt"),
-            test_patch_data=torch.load(storage_dir / "test_patch_data.pt"),
+            test_data=torch.load(storage_dir / "test_data.pt", map_location=device),
+            test_patch_data=torch.load(storage_dir / "test_patch_data.pt", map_location=device),
             random_circuit=json.loads((storage_dir / "random_circuit.json").read_text(), cls=EdgeJSONDecoder),
         )
 
@@ -156,7 +158,7 @@ class CircuitPerformanceDistributionResults:
 
 
 @hydra.main(config_path="conf", config_name="config_bruteforce", version_base=None)
-def main_for_plotting_three_experiments(
+def main(
     settings: BruteForceExperimentSettings,
 ) -> CircuitPerformanceDistributionResults:
     experiment_name = settings.task.task_name
@@ -239,4 +241,4 @@ def main_for_plotting_three_experiments(
 if __name__ == "__main__":
     logger.info("Using device %s", device)
 
-    main_for_plotting_three_experiments()
+    main()

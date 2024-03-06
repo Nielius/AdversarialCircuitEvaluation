@@ -17,8 +17,8 @@ def kl_div_on_output_logits(
         # But for e.g. the docstring task, we only want to get the metrics
         # from the final sequence position.
         metrics = F.kl_div(
-            F.log_softmax(other_output_logits[:, -1, :], dim=-1),
-            F.log_softmax(base_output_logits[:, -1, :], dim=-1),
+            F.log_softmax(other_output_logits[:, -1, :], dim=-1),  # prediction
+            F.log_softmax(base_output_logits[:, -1, :], dim=-1),  # true
             reduction="none",
             log_target=True,
         ).mean(dim=-1)

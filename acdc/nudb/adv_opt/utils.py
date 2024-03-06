@@ -26,6 +26,25 @@ joblib_memory = Memory(CIRCUITBENCHMARKS_DATA_DIR / "joblib", verbose=0)
 TIn = TypeVar("TIn")
 
 
+def _deep_map_with_depth(func: Callable[[TIn], Any], x: list | TIn, map_depth: int, current_depth: int) -> Any:
+    if current_depth == map_depth:
+        return func(x)
+    return [_deep_map_with_depth(func, xi, map_depth, current_depth + 1) for xi in x]
+
+
+def deep_map_with_depth(func: Callable[[TIn], Any], x: list | TIn, map_depth: int) -> Any:
+    """Quick explanation:
+
+    given a list[list[list[.... [X] ]]]
+            |___max_depth___| (max_depth number of lists)
+    return list[list[list[.... [func(X)] ]]]
+
+    Use instead of deep_map if you don't want to map over all lists in the input,
+    but only up to a certain depth.
+    """
+    return _deep_map_with_depth(func, x, map_depth, 0)
+
+
 def deep_map(func: Callable[[TIn], Any], x: list | TIn) -> Any:
     if isinstance(x, list):
         return [deep_map(func, xi) for xi in x]

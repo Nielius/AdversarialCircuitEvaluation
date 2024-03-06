@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+    - settings_schema
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task_name: TRACR_REVERSE,GREATERTHAN,IOI,DOCSTRING
+  sweep:
+    subdir: ${task_name}
