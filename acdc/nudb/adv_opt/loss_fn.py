@@ -21,7 +21,7 @@ def kl_div_on_output_logits(
             F.log_softmax(base_output_logits[:, -1, :], dim=-1),  # true
             reduction="none",
             log_target=True,
-        ).mean(dim=-1)
+        ).sum(dim=-1)
     else:
         metrics = (
             F.kl_div(
@@ -30,7 +30,7 @@ def kl_div_on_output_logits(
                 reduction="none",
                 log_target=True,
             )
-            .mean(dim=-1)
-            .mean(dim=-1)
-        )  # mean over sequence position and output logit
+            .sum(dim=-1)  # sum over vocab
+            .mean(dim=-1)  # mean of sequence positions
+        )
     return metrics
