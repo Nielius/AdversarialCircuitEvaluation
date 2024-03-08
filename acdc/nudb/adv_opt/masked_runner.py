@@ -139,7 +139,7 @@ class MaskedRunner:
         input_embedded: Float[torch.Tensor, "batch pos d_resid"],
         dummy_input: Integer[torch.Tensor, " pos"],
         coefficients: Num[torch.Tensor, " batch"],
-        patch_input: Num[torch.Tensor, " pos"],
+        patch_input: Integer[torch.Tensor, " pos"],
         edges_to_ablate: list[Edge],
     ) -> Float[torch.Tensor, "1 pos vocab"]:
         """'input_embedded' should be the input after the embedding layer.
@@ -155,9 +155,51 @@ class MaskedRunner:
             ).unsqueeze(dim=0)
             return convex_combination
 
-        # self.masked_transformer.init_ablation_cache(ablation=) <--- probably want to do something like this
-        # NOTE: we're going to have 2 hooks at the hook_embed point; does that work? otherwise, relatively big change
         self.masked_transformer.calculate_and_store_ablation_cache(patch_input)
+        with self.hooks(
+            fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook)]
+        ) as runner_with_convex_combination:
+            return runner_with_convex_combination.run(
+                input=dummy_input.unsqueeze(0), patch_input=None, edges_to_ablate=edges_to_ablate
+            )
+
+    def run_with_linear_combination_of_input_and_patch(
+        self,
+        input_embedded: Float[torch.Tensor, "batch pos d_resid"],
+        patch_input_embedded: Float[torch.Tensor, "batch pos d_resid"],
+        dummy_input: Integer[torch.Tensor, " pos"],
+        coefficients: Num[torch.Tensor, " batch"],
+        coefficients_patch: Num[torch.Tensor, " batch"],
+        edges_to_ablate: list[Edge],
+    ) -> Float[torch.Tensor, "1 pos vocab"]:
+        """'input_embedded' should be the input after the embedding layer.
+
+        'dummy_input' and 'patch_input' should be a single input point (pre-embedding, without batch dim)"""
+
+        def replace_embedding_with_convex_combination_hook(
+            hook_point_out: torch.Tensor, hook: HookPoint, verbose=False
+        ) -> Float[torch.Tensor, "1 pos d_resid"]:
+            convex_combination = torch.einsum(
+                "b, b p d -> p d",
+                [torch.nn.functional.softmax(coefficients), input_embedded],
+            ).unsqueeze(dim=0)
+            return convex_combination
+
+        # todo cleanup
+        def replace_embedding_with_convex_combination_hook_patch(
+            hook_point_out: torch.Tensor, hook: HookPoint, verbose=False
+        ) -> Float[torch.Tensor, "1 pos d_resid"]:
+            convex_combination = torch.einsum(
+                "b, b p d -> p d",
+                [torch.nn.functional.softmax(coefficients_patch), patch_input_embedded],
+            ).unsqueeze(dim=0)
+            return convex_combination
+
+        # calculate ablation cache with the convex combination
+        with self.hooks(fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook_patch)]):
+            self.masked_transformer.calculate_and_store_ablation_cache(dummy_input.unsqueeze(0))
+
+        # do forward pass with ablations on convex combination
         with self.hooks(
             fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook)]
         ) as runner_with_convex_combination:

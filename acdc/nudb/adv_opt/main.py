@@ -50,7 +50,7 @@ def main(settings: ExperimentSettings) -> None:
     # Log in to your W&B account
     wandb.login()
     wandb.init(
-        project="advopt-input-only",
+        project="advopt-input-and-patch",
         config=omegaconf.OmegaConf.to_container(settings, resolve=True),
         mode="online" if settings.use_wandb else "disabled",
         name=settings.wandb_run_name,
@@ -71,12 +71,24 @@ def main(settings: ExperimentSettings) -> None:
     base_input_embedded = experiment_data.masked_runner.masked_transformer.model.embed(base_input)
     artifacts.base_input = base_input
 
-    patch_input = experiment_data.task_data.test_patch_data[0, ...]
+    base_patch_input: Integer[torch.Tensor, "batch pos"] = torch.cat(
+        [experiment_data.task_data.test_patch_data, experiment_data.task_data.validation_patch_data]
+    )
+    base_patch_input_embedded = experiment_data.masked_runner.masked_transformer.model.embed(base_patch_input)
+    artifacts.base_patch_input = base_patch_input
+
     dummy_input = experiment_data.task_data.test_data[0, ...]
 
     convex_coefficients = torch.rand(base_input.shape[0], requires_grad=True, device=device)
-    optimizer = torch.optim.Adam([convex_coefficients], lr=settings.adam_lr)
+    convex_coefficients_patch = torch.rand(base_input.shape[0], requires_grad=True, device=device)
+    if settings.optimization_method == "adam":
+        optimizer = torch.optim.Adam([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
+    elif settings.optimization_method == "adamw":
+        optimizer = torch.optim.AdamW([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
+    else:
+        raise ValueError(f"Unknown optimization method: {settings.optimization_method}")
     artifacts.coefficients_init = convex_coefficients.detach().clone()
+    artifacts.coefficients_init_patch = convex_coefficients_patch.detach().clone()
 
     if settings.task.task_name == AdvOptTaskName.TRACR_REVERSE:
         settings_ = omegaconf.OmegaConf.to_object(settings)
@@ -104,18 +116,20 @@ def main(settings: ExperimentSettings) -> None:
         # Try different initizalizations of the coefficients, see if it's sensitive to that
         # maybe just set all to zero in initialization?
         optimizer.zero_grad()
-        circuit_output = experiment_data.masked_runner.run_with_linear_combination(
+        circuit_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
             input_embedded=base_input_embedded,
+            patch_input_embedded=base_patch_input_embedded,
             dummy_input=dummy_input,
             coefficients=convex_coefficients,
-            patch_input=patch_input,
+            coefficients_patch=convex_coefficients_patch,
             edges_to_ablate=list(experiment_data.ablated_edges),
         )
-        full_output = experiment_data.masked_runner.run_with_linear_combination(
+        full_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
             input_embedded=base_input_embedded,
+            patch_input_embedded=base_patch_input_embedded,
             dummy_input=dummy_input,
             coefficients=convex_coefficients,
-            patch_input=patch_input,
+            coefficients_patch=convex_coefficients_patch,
             edges_to_ablate=[],
         )
         negative_loss = -1 * experiment_data.loss_fn(
@@ -130,6 +144,7 @@ def main(settings: ExperimentSettings) -> None:
         # wandb.log({"loss": loss, "convex_combination": convex_coefficients})
 
     artifacts.coefficients_final = convex_coefficients.detach().clone()
+    artifacts.coefficients_final_patch = convex_coefficients_patch.detach().clone()
     artifacts.save(output_base_dir / "artifacts")
     logger.info("Finished training. Output stored in %s", output_base_dir)
 

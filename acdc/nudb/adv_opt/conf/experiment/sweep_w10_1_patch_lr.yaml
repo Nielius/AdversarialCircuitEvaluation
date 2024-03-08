@@ -1,0 +1,15 @@
+# @package _global_
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task: greaterthan
+      adam_lr: 5,1,0.5,0.1,0.01
+  sweep:
+    subdir: ${adam_lr}
+
+num_epochs: 400
+random_seed: 4321
+use_wandb: True
+wandb_run_name: ${oc.decode:${task.task_name}}_adam_${adam_lr}
+wandb_group_name: ${oc.decode:${task.task_name}}_adam_lr_sweep
