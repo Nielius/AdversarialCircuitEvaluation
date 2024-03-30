@@ -1,0 +1,21 @@
+# @package _global_
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task: docstring,ioi
+      adam_lr: 1,0.5,0.1
+      temperature_schedule: constant_low,stable_low,stable
+      noise_schedule: absent,constant,clamped,intermittent_constant,intermittent_clamped
+      random_seed: 4321,4322
+  sweep:
+    subdir: ${temperature_schedule}-adam${adam_lr}-rs${random_seed}
+
+# The main thing I want to test here is: how does the noise impact the results?
+
+adam_lr_schedule: constant
+num_epochs: 1000
+use_wandb: True
+wandb_run_name: noise_${noise_schedule}_T${temperature_schedule}_LR${adam_lr}_rs${random_seed}_${oc.decode:${task.task_name}}
+wandb_group_name: test_noise_${oc.decode:${task.task_name}}
+wandb_project_name: test-annealing-noise

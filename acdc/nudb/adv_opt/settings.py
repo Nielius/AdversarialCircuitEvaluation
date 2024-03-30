@@ -32,12 +32,17 @@ class ExperimentSettings:
     task: TaskSpecificSettings
     num_epochs: int
     adam_lr: float = 1e-3
+    wandb_project_name: str | None = None
     wandb_run_name: str | None = None
     wandb_group_name: str | None = None
+    wandb_tags: list[str] | None = None
     use_wandb: bool = False
     random_seed: int | None = None
     use_experiment_cache: bool = False
     optimization_method: OptimizationMethod = OptimizationMethod.ADAM
+    adam_lr_schedule: str = "constant"
+    temperature_schedule: str = "constant"
+    noise_schedule: str = "constant"
 
 
 @dataclass
