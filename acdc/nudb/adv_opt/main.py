@@ -91,12 +91,17 @@ def main(settings: ExperimentSettings) -> None:
 
     convex_coefficients = torch.rand(base_input.shape[0], requires_grad=True, device=device)
     convex_coefficients_patch = torch.rand(base_input.shape[0], requires_grad=True, device=device)
-    if settings.optimization_method == "adam":
-        optimizer = torch.optim.Adam([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
-    elif settings.optimization_method == "adamw":
-        optimizer = torch.optim.AdamW([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
-    else:
-        raise ValueError(f"Unknown optimization method: {settings.optimization_method}")
+
+    match settings.optimization_method:
+        case "adam":
+            optimizer = torch.optim.Adam([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
+        case "adamw":
+            optimizer = torch.optim.AdamW([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
+        case "lbfgs":
+            optimizer = torch.optim.LBFGS([convex_coefficients, convex_coefficients_patch], lr=settings.adam_lr)
+            assert settings.noise_schedule == "absent"
+        case _:
+            raise ValueError(f"Unknown optimization method: {settings.optimization_method}")
 
     match settings.adam_lr_schedule:
         case "constant":
@@ -125,75 +130,112 @@ def main(settings: ExperimentSettings) -> None:
     noise_generator = _get_noise_generator(settings.noise_schedule, convex_coefficients.shape)
 
     for i in range(settings.num_epochs):
-        optimizer.zero_grad()
-        noise, noise_patch = noise_generator.generate_noise(i, settings.num_epochs)
-        convex_coefficients_with_noise_and_temp = (convex_coefficients + noise) / temperature
-        convex_coefficients_patch_with_noise_and_temp = (convex_coefficients_patch + noise_patch) / temperature
+        if settings.optimization_method != "lbfgs":
+            optimizer.zero_grad()
+            noise, noise_patch = noise_generator.generate_noise(i, settings.num_epochs)
+            convex_coefficients_with_noise_and_temp = (convex_coefficients + noise) / temperature
+            convex_coefficients_patch_with_noise_and_temp = (convex_coefficients_patch + noise_patch) / temperature
 
-        circuit_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
-            input_embedded=base_input_embedded,
-            patch_input_embedded=base_patch_input_embedded,
-            dummy_input=dummy_input,
-            coefficients=convex_coefficients_with_noise_and_temp,
-            coefficients_patch=convex_coefficients_patch_with_noise_and_temp,
-            edges_to_ablate=list(experiment_data.ablated_edges),
-        )
-        full_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
-            input_embedded=base_input_embedded,
-            patch_input_embedded=base_patch_input_embedded,
-            dummy_input=dummy_input,
-            coefficients=convex_coefficients_with_noise_and_temp,
-            coefficients_patch=convex_coefficients_patch_with_noise_and_temp,
-            edges_to_ablate=[],
-        )
-        negative_loss = -1 * experiment_data.loss_fn(
-            circuit_output,
-            full_output,
-        )
-        negative_loss.backward()
-        with torch.no_grad():
-            wandb.log(
-                {
-                    "loss": -1 * negative_loss,
-                    "temperature": temperature,
-                    "epoch": i,
-                    "lr": optimizer.param_groups[0]["lr"],
-                    "coefficients_entropy": torch.distributions.Categorical(logits=convex_coefficients)
-                    .entropy()
-                    .item(),
-                    "coefficients_patch_entropy": torch.distributions.Categorical(logits=convex_coefficients_patch)
-                    .entropy()
-                    .item(),
-                    "gradient_norm": torch.norm(convex_coefficients.grad).item(),
-                    "coefficients_norm": torch.norm(convex_coefficients).item(),
-                    "noise_kl_div": F.kl_div(
-                        convex_coefficients,
-                        convex_coefficients_with_noise_and_temp * temperature,
-                        reduction="none",
-                        log_target=True,
-                    ).sum(),
-                }
+            circuit_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
+                input_embedded=base_input_embedded,
+                patch_input_embedded=base_patch_input_embedded,
+                dummy_input=dummy_input,
+                coefficients=convex_coefficients_with_noise_and_temp,
+                coefficients_patch=convex_coefficients_patch_with_noise_and_temp,
+                edges_to_ablate=list(experiment_data.ablated_edges),
             )
+            full_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
+                input_embedded=base_input_embedded,
+                patch_input_embedded=base_patch_input_embedded,
+                dummy_input=dummy_input,
+                coefficients=convex_coefficients_with_noise_and_temp,
+                coefficients_patch=convex_coefficients_patch_with_noise_and_temp,
+                edges_to_ablate=[],
+            )
+            negative_loss = -1 * experiment_data.loss_fn(
+                circuit_output,
+                full_output,
+            )
+            negative_loss.backward()
 
-        optimizer.step()
+            with torch.no_grad():
+                wandb.log(
+                    {
+                        "loss": -1 * negative_loss,
+                        "temperature": temperature,
+                        "epoch": i,
+                        "lr": optimizer.param_groups[0]["lr"],
+                        "coefficients_entropy": torch.distributions.Categorical(logits=convex_coefficients)
+                        .entropy()
+                        .item(),
+                        "coefficients_patch_entropy": torch.distributions.Categorical(logits=convex_coefficients_patch)
+                        .entropy()
+                        .item(),
+                        "gradient_norm": torch.norm(convex_coefficients.grad).item(),
+                        "coefficients_norm": torch.norm(convex_coefficients).item(),
+                        "noise_kl_div": F.kl_div(
+                            convex_coefficients,
+                            convex_coefficients_with_noise_and_temp * temperature,
+                            reduction="none",
+                            log_target=True,
+                        ).sum(),
+                    }
+                )
 
-        match settings.temperature_schedule:
-            case "stable":  # this is stable, then drops linearly in last 80%
-                temperature = min(1.0, 1e-4 + 5 * (1 - (i / settings.num_epochs)))
-            case "stable_low":  # this is stable (but low), then drops linearly in last 80%
-                base_temperature = 0.8
-                temperature = min(base_temperature, 5 * base_temperature * (1 - (i / settings.num_epochs)) + 1e-4)
-            case "constant_low":
-                temperature = 0.8
-            case "linear":
-                temperature = 0.0001 + 1 - i / settings.num_epochs
+            optimizer.step()
 
-        if scheduler is not None:
-            scheduler.step()
-            # scheduler.step(-1 * negative_loss) # if we're using plateau
-        logger.info(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
-        logger.debug("Convex coefficients:", convex_coefficients)
-        # wandb.log({"loss": loss, "convex_combination": convex_coefficients})
+            match settings.temperature_schedule:
+                case "stable":  # this is stable, then drops linearly in last 80%
+                    temperature = min(1.0, 1e-4 + 5 * (1 - (i / settings.num_epochs)))
+                case "stable_low":  # this is stable (but low), then drops linearly in last 80%
+                    base_temperature = 0.8
+                    temperature = min(base_temperature, 5 * base_temperature * (1 - (i / settings.num_epochs)) + 1e-4)
+                case "constant_low":
+                    temperature = 0.8
+                case "linear":
+                    temperature = 0.0001 + 1 - i / settings.num_epochs
+
+            if scheduler is not None:
+                scheduler.step()
+
+            logger.info(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
+            logger.debug("Convex coefficients:", convex_coefficients)
+
+        elif isinstance(optimizer, torch.optim.LBFGS):
+
+            def closure():
+                optimizer.zero_grad()
+                # differences from above: we're not using any noise
+                circuit_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
+                    input_embedded=base_input_embedded,
+                    patch_input_embedded=base_patch_input_embedded,
+                    dummy_input=dummy_input,
+                    coefficients=convex_coefficients,
+                    coefficients_patch=convex_coefficients_patch,
+                    edges_to_ablate=list(experiment_data.ablated_edges),
+                )
+                full_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
+                    input_embedded=base_input_embedded,
+                    patch_input_embedded=base_patch_input_embedded,
+                    dummy_input=dummy_input,
+                    coefficients=convex_coefficients,
+                    coefficients_patch=convex_coefficients_patch,
+                    edges_to_ablate=[],
+                )
+                negative_loss = -1e5 * experiment_data.loss_fn(
+                    circuit_output,
+                    full_output,
+                )
+                negative_loss.backward()
+
+                return negative_loss.item()
+
+            if i == 0:
+                logger.info("Initial loss: %s", -1e-5 * closure())
+            optimizer.step(closure)
+            logger.info(f"Done with step {i}.")
+            if i % 10 == 0:
+                logger.info(f"Epoch {i}, loss: {-1e-5 * closure()}")
 
     artifacts.coefficients_final = convex_coefficients.detach().clone()
     artifacts.coefficients_final_patch = convex_coefficients_patch.detach().clone()

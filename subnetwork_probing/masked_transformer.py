@@ -1,7 +1,8 @@
 import logging
 import math
 from contextlib import contextmanager
-from typing import Callable, ContextManager, Generator, Iterable, TypeAlias
+from enum import Enum
+from typing import Callable, ContextManager, Iterable, TypeAlias, Iterator, Union
 
 import torch
 from einops import rearrange
@@ -18,8 +19,19 @@ logger = logging.getLogger(__name__)
 PatchData: TypeAlias = Num[torch.Tensor, "batch pos"] | None  # use None if you want zero ablation
 
 
+class CircuitStartingPointType(str, Enum):
+    """We have two conventions for where to start the circuit: either at hook_embed and hook_pos_embed, or at
+    hook_resid_pre.
+
+    In older pieces of code this concept might also be referred to as 'use_pos_embed: bool' (where True corresponds
+    to CircuitStartingPointType.POS_EMBED).
+    """
+    POS_EMBED = "pos_embed"  # uses hook_embed and hook_pos_embed as starting point
+    RESID_PRE = "resid_pre"  # uses blocks.0.hook_resid_pre as starting point
+
+
 def create_mask_parameters_and_forward_cache_hook_points(
-    use_pos_embed: bool, num_heads: int, num_layers: int, device: str, mask_init_constant: float, attn_only: bool
+    circuit_start_type: CircuitStartingPointType, num_heads: int, num_layers: int, device: str, mask_init_constant: float, attn_only: bool
 ):
     """
     Given the relevant configuration for a transformer, this function produces two things:
@@ -70,7 +82,15 @@ def create_mask_parameters_and_forward_cache_hook_points(
         mask_parameter_list.append(new_mask_parameter)
         mask_parameter_dict[mask_name] = new_mask_parameter
 
-    for embedding_hook_point in ["hook_embed", "hook_pos_embed"] if use_pos_embed else ["blocks.0.hook_resid_pre"]:
+    match circuit_start_type:
+        case CircuitStartingPointType.POS_EMBED:
+            starting_points = ["hook_embed", "hook_pos_embed"]
+        case CircuitStartingPointType.RESID_PRE:
+            starting_points = ["blocks.0.hook_resid_pre"]
+        case _:
+            raise ValueError(f"Unknown circuit_start_type: {circuit_start_type}")
+
+    for embedding_hook_point in starting_points:
         setup_output_hook_point(embedding_hook_point, 1)
 
     # Add mask logits for ablation cache
@@ -127,10 +147,14 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         gamma=-0.1,
         zeta=1.1,
         mask_init_p=0.9,
-        use_pos_embed=False,
+        starting_point_type: CircuitStartingPointType = CircuitStartingPointType.POS_EMBED,
         no_ablate=False,
         verbose=False,
     ):
+        """
+        - 'use_pos_embed': if set to True, create masks for edges from 'hook_embed' and 'hook_pos_embed'; othererwise,
+            create masks for edges from 'blocks.0.hook_resid_pre'.
+        """
         super().__init__()
 
         self.model = model
@@ -140,7 +164,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         if no_ablate:
             print("WARNING: no_ablate is True, this is for testing only")
         self.device = self.model.parameters().__next__().device
-        self.use_pos_embed = use_pos_embed
+        self.starting_point_type = starting_point_type
         self.verbose = verbose
 
         self.ablation_cache = ActivationCache({}, self.model)
@@ -162,7 +186,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
             self.mask_parameter_list,
             self._mask_parameter_dict,
         ) = create_mask_parameters_and_forward_cache_hook_points(
-            use_pos_embed=self.use_pos_embed,
+            circuit_start_type=self.starting_point_type,
             num_heads=self.n_heads,
             num_layers=model.cfg.n_layers,
             device=self.device,
@@ -305,7 +329,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
         bwd_hooks: list[tuple[str | Callable, Callable]] | None = None,
         reset_hooks_end: bool = True,
         clear_contexts: bool = False,
-    ) -> Generator["EdgeLevelMaskedTransformer", None, None]:
+    ) -> Iterator["EdgeLevelMaskedTransformer"]:
         """Imitates the 'hooks' context manager in HookedTransformer."""
         with self.model.hooks(
             fwd_hooks=fwd_hooks or [],
@@ -334,7 +358,7 @@ class EdgeLevelMaskedTransformer(torch.nn.Module):
 
     def get_edge_level_correspondence_from_masks(self, use_pos_embed: bool = None) -> TLACDCCorrespondence:
         if use_pos_embed is None:
-            use_pos_embed = self.use_pos_embed
+            use_pos_embed = self.starting_point_type == CircuitStartingPointType.POS_EMBED
         corr = TLACDCCorrespondence.setup_from_model(self.model, use_pos_embed=use_pos_embed)
 
         # Define edges

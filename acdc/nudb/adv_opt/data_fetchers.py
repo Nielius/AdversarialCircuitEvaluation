@@ -1,7 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
-from functools import partial
+from functools import partial, cached_property
 from typing import Callable
 
 import torch
@@ -16,14 +16,25 @@ from acdc.nudb.adv_opt.masked_runner import MaskedRunner
 from acdc.nudb.adv_opt.utils import device
 from acdc.TLACDCEdge import Edge, IndexedHookPointName
 from acdc.tracr_task.utils import get_all_tracr_things, get_tracr_proportion_edges, get_tracr_reverse_edges
+from subnetwork_probing.masked_transformer import CircuitStartingPointType
 
 
 def edge_tuples_to_dataclass(true_edges: dict[tuple[IndexedHookPointName, IndexedHookPointName], bool]) -> list[Edge]:
     return [Edge.from_tuple_format(*tuple) for tuple, is_present in true_edges.items() if is_present]
 
 
+class AdvOptTaskName(str, Enum):
+    TRACR_REVERSE = "tracr_reverse"
+    TRACR_PROPORTION = "tracr_proportion"
+    DOCSTRING = "docstring"
+    INDUCTION = "induction"
+    GREATERTHAN = "greaterthan"
+    IOI = "ioi"
+
+
 @dataclass
 class AdvOptExperimentData:
+    task_name: AdvOptTaskName
     task_data: AllDataThings
     circuit_edges: list[Edge]
     masked_runner: MaskedRunner
@@ -31,7 +42,7 @@ class AdvOptExperimentData:
         [Float[torch.Tensor, "batch pos vocab"], Float[torch.Tensor, "batch pos vocab"]], Float[torch.Tensor, " batch"]
     ]
 
-    @property
+    @cached_property
     def ablated_edges(self) -> set[Edge]:
         # see comment at the bottom of this file about why I believe this works.
         return self.masked_runner.all_ablatable_edges - set(self.circuit_edges)
@@ -55,10 +66,36 @@ class AdvOptDataProvider(ABC):
         raise NotImplementedError
 
 
+def _determine_circuit_starting_point_type(circuit: list[Edge]) -> CircuitStartingPointType:
+    """Returns the starting point type based on which hook point names occur in the true edges.
+
+    Does a sanity check to see that it doesn't use both."""
+    found_hook_pos: bool = False
+    found_hook_resid_pre: bool = False
+
+    for edge in circuit:
+        if edge.parent.hook_name.endswith("hook_pos"):
+            found_hook_pos = True
+
+        if edge.parent.hook_name.endswith("hook_pos_embed"):
+            found_hook_pos = True
+
+        if edge.parent.hook_name.endswith("hook_resid_pre"):
+            found_hook_resid_pre = True
+
+    # We could do early stopping (return True/False as soon as we find one conclusive child), but just as a sanity
+    # check we'll loop through all edges to exclude that both types occur:
+    if found_hook_pos == found_hook_resid_pre:
+        raise ValueError("Could not determine whether to use pos_embed or not.")
+
+    return CircuitStartingPointType.POS_EMBED if found_hook_pos else CircuitStartingPointType.RESID_PRE
+
+
 @dataclass
 class ACDCAdvOptDataProvider(AdvOptDataProvider):
     task_data_fetcher: Callable[..., AllDataThings]
     true_edges_fetcher: Callable[[HookedTransformer], dict]
+    task_name: AdvOptTaskName
     metric_last_sequence_position_only: bool = False
 
     def get_experiment_data(
@@ -72,25 +109,19 @@ class ACDCAdvOptDataProvider(AdvOptDataProvider):
             metric_name=metric_name,
             device=device,
         )
-        true_edges = self.true_edges_fetcher(task_data.tl_model)
+        true_edges = edge_tuples_to_dataclass(self.true_edges_fetcher(task_data.tl_model))
 
         return AdvOptExperimentData(
+            task_name=self.task_name,
             task_data=task_data,
-            circuit_edges=edge_tuples_to_dataclass(true_edges),
-            masked_runner=MaskedRunner(model=task_data.tl_model),
+            circuit_edges=true_edges,
+            masked_runner=MaskedRunner(
+                model=task_data.tl_model, starting_point_type=_determine_circuit_starting_point_type(true_edges)
+            ),
             loss_fn=partial(
                 kl_div_on_output_logits, last_sequence_position_only=self.metric_last_sequence_position_only
             ),
         )
-
-
-class AdvOptTaskName(str, Enum):
-    TRACR_REVERSE = "tracr_reverse"
-    TRACR_PROPORTION = "tracr_proportion"
-    DOCSTRING = "docstring"
-    INDUCTION = "induction"
-    GREATERTHAN = "greaterthan"
-    IOI = "ioi"
 
 
 EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
@@ -99,6 +130,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         # There are only 6 data points.
         # Only 1 attention head.
         # KL divergence is not well-defined for its output.
+        task_name=AdvOptTaskName.TRACR_REVERSE,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_tracr_things(
             task="reverse", metric_name=metric_name, num_examples=num_examples, device=device
         ),
@@ -107,12 +139,14 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
     AdvOptTaskName.TRACR_PROPORTION: ACDCAdvOptDataProvider(
         # tracr-proportion is a task that takes a permutation of [0, 1, 2] and returns the proportion of the
         # first element in the permutation.
+        task_name=AdvOptTaskName.TRACR_PROPORTION,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_tracr_things(
             task="proportion", metric_name=metric_name, num_examples=num_examples, device=device
         ),
         true_edges_fetcher=lambda model: get_tracr_proportion_edges(),
     ),
     AdvOptTaskName.DOCSTRING: ACDCAdvOptDataProvider(
+        task_name=AdvOptTaskName.DOCSTRING,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_docstring_things(
             num_examples=num_examples, metric_name=metric_name, seq_len=4, device=device
         ),
@@ -120,6 +154,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         metric_last_sequence_position_only=True,
     ),
     AdvOptTaskName.GREATERTHAN: ACDCAdvOptDataProvider(
+        task_name=AdvOptTaskName.GREATERTHAN,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_greaterthan_things(
             num_examples=num_examples, metric_name=metric_name, device=device
         ),
@@ -127,6 +162,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         metric_last_sequence_position_only=True,
     ),
     AdvOptTaskName.IOI: ACDCAdvOptDataProvider(
+        task_name=AdvOptTaskName.IOI,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_ioi_things(
             num_examples=num_examples, metric_name=metric_name, device=device
         ),

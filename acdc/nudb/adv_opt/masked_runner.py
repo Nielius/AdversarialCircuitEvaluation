@@ -1,7 +1,7 @@
 import itertools
 from contextlib import contextmanager
 from functools import cached_property
-from typing import Callable, Generator
+from typing import Callable, Iterator
 
 import torch
 from jaxtyping import Float, Integer, Num
@@ -9,7 +9,7 @@ from transformer_lens import HookedTransformer
 from transformer_lens.hook_points import HookPoint
 
 from acdc.TLACDCEdge import Edge, HookPointName, IndexedHookPointName
-from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer
+from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer, CircuitStartingPointType
 
 
 class MaskedRunner:
@@ -23,12 +23,12 @@ class MaskedRunner:
     _parent_index_per_child: dict[tuple[HookPointName, IndexedHookPointName], int]
     _indexed_parents_per_child: dict[HookPointName, list[IndexedHookPointName]]
 
-    def __init__(self, model: HookedTransformer):
+    def __init__(self, model: HookedTransformer, starting_point_type: CircuitStartingPointType):
         assert (
             model.cfg.positional_embedding_type in {"standard"}
         ), "This is a temporary check; I don't know what values are possible here and what to do with them (in terms of whether or not they're using pos embed)"
         self.masked_transformer = EdgeLevelMaskedTransformer(
-            model=model, use_pos_embed=model.cfg.positional_embedding_type == "standard"
+            model=model, starting_point_type=starting_point_type
         )
         self.masked_transformer.freeze_weights()
         self._freeze_all_masks()
@@ -84,7 +84,8 @@ class MaskedRunner:
         self,
         patch_input: Num[torch.Tensor, "batch pos"] | None,
         edges_to_ablate: list[Edge],
-    ) -> Generator[HookedTransformer, None, None]:
+        retain_patch_gradient: bool = False,
+    ) -> Iterator[HookedTransformer]:
         """If 'patch_input' is None, do not recalculate the ablation cache. This is useful if you're running the model
         with the same patch input as before, and you don't want to recalculate the ablation cache.
         It is also useful if you're adding hooks that get in the way of the ablation cache calculation."""
@@ -111,7 +112,7 @@ class MaskedRunner:
         bwd_hooks: list[tuple[str | Callable, Callable]] | None = None,
         reset_hooks_end: bool = True,
         clear_contexts: bool = False,
-    ) -> Generator["MaskedRunner", None, None]:
+    ) -> Iterator["MaskedRunner"]:
         """Imitates the 'hooks' context manager in HookedTransformer."""
         with self.masked_transformer.hooks(
             fwd_hooks=fwd_hooks,
@@ -185,7 +186,7 @@ class MaskedRunner:
             ).unsqueeze(dim=0)
             return convex_combination
 
-        # todo cleanup
+        # todo cleanup: this is basically the same as the function above
         def replace_embedding_with_convex_combination_hook_patch(
             hook_point_out: torch.Tensor, hook: HookPoint, verbose=False
         ) -> Float[torch.Tensor, "1 pos d_resid"]:

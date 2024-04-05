@@ -24,6 +24,7 @@ from acdc.acdc_utils import (
 from acdc.TLACDCEdge import (
     TorchIndex,
 )
+from acdc.types import EdgeAsTuple
 
 
 @dataclasses.dataclass(frozen=False)
@@ -256,7 +257,7 @@ def get_docstring_data(tl_model: HookedTransformer, num_examples: int, dataset_v
     )
 
 
-def get_docstring_subgraph_true_edges():
+def get_docstring_subgraph_true_edges() -> dict[EdgeAsTuple, bool]:
     # the manual graph, from Stefan
 
     edges_to_keep = []

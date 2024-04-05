@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from acdc.acdc_utils import TorchIndex, kl_divergence
 from acdc.docstring.utils import AllDataThings
 from acdc.ioi.utils import get_gpt2_small
+from acdc.types import EdgeAsTuple
 
 NOUNS = [
     "abduction",
@@ -320,7 +321,7 @@ CIRCUIT = {
 }
 
 
-def get_greaterthan_true_edges(model):
+def get_greaterthan_true_edges(model) -> dict[EdgeAsTuple, bool]:
     from subnetwork_probing.train import iterative_correspondence_from_mask
 
     corr, _ = iterative_correspondence_from_mask(
@@ -436,7 +437,8 @@ def get_greaterthan_true_edges(model):
 
     ret = OrderedDict(
         {
-            (t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): edge.present
+            # child first, parent second
+            (t[2], t[3].hashable_tuple, t[0], t[1].hashable_tuple): edge.present
             for t, edge in corr.edge_dict().items()
             if edge.present
         }

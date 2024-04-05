@@ -1,6 +1,7 @@
 import IPython
 
 from acdc.docstring.utils import AllDataThings
+from acdc.types import EdgeAsTuple
 
 if IPython.get_ipython() is not None:
     IPython.get_ipython().magic("load_ext autoreload")
@@ -416,7 +417,7 @@ def get_all_tracr_things(
     raise ValueError(f"unknown task {task}")
 
 
-def get_tracr_proportion_edges():
+def get_tracr_proportion_edges() -> dict[EdgeAsTuple, bool]:
     """Set of edges generated from ACDC run with threshold epsilon, metric l2 and zero ablation (commit e612e50)"""
 
     return OrderedDict(
@@ -509,7 +510,7 @@ def get_tracr_proportion_edges():
     )
 
 
-def get_tracr_reverse_edges():
+def get_tracr_reverse_edges() -> dict[EdgeAsTuple, bool]:
     """Set of edges generated from ACDC run with threshold epsilon, metric l2 and zero ablation (commit e612e50)"""
 
     return OrderedDict(

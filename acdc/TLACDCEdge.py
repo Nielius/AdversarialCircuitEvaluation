@@ -156,7 +156,7 @@ class IndexedHookPointName:
 
 @dataclass(eq=True, frozen=True, slots=True)
 class Edge:
-    """An edge in the computational graph, pointing from parent to child."""
+    """An edge in the computational graph, pointing from parent to child. The child is a dependency of the parent."""
 
     child: IndexedHookPointName
     parent: IndexedHookPointName

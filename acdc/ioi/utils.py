@@ -24,6 +24,7 @@ from acdc.TLACDCEdge import (
     TorchIndex,
 )
 from acdc.TLACDCInterpNode import TLACDCInterpNode
+from acdc.types import EdgeAsTuple
 
 
 def get_gpt2_small(device="cuda") -> HookedTransformer:
@@ -209,9 +210,7 @@ class Conn:
     qkv: tuple[str, ...]
 
 
-def get_ioi_true_edges(model):
-    nodes_to_mask = []
-
+def get_ioi_true_edges(model) -> dict[EdgeAsTuple, bool]:
     all_groups_of_nodes = [group for _, group in IOI_CIRCUIT.items()]
     all_nodes = [node for group in all_groups_of_nodes for node in group]
     assert len(all_nodes) == 26, len(all_nodes)
@@ -323,7 +322,8 @@ def get_ioi_true_edges(model):
 
     ret = OrderedDict(
         {
-            (t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): e.present
+            # computationally dependent child first, parent second
+            (t[2], t[3].hashable_tuple, t[0], t[1].hashable_tuple): e.present
             for t, e in corr.edge_dict().items()
             if e.present
         }

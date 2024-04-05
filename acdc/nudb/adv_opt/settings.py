@@ -25,6 +25,7 @@ class TracrReverseTaskSpecificSettings(TaskSpecificSettings):
 class OptimizationMethod(str, Enum):
     ADAM = "adam"
     ADAMW = "adamw"
+    LBFGS = "lbfgs"
 
 
 @dataclass

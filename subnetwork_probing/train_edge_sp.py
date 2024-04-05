@@ -106,7 +106,7 @@ def train_edge_sp(
 
     # Get canonical subgraph so we can print TPR, FPR
     canonical_circuit_subgraph = TLACDCCorrespondence.setup_from_model(
-        masked_model.model, use_pos_embed=masked_model.use_pos_embed
+        masked_model.model, use_pos_embed=masked_model.starting_point_type
     )
     d_trues = set(get_true_edges())
     set_ground_truth_edges(canonical_circuit_subgraph, d_trues)
