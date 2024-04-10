@@ -1,6 +1,7 @@
 import logging
 import random
 from pathlib import Path
+from typing import cast
 
 import hydra
 import hydra.core.hydra_config as hydra_config
@@ -67,10 +68,11 @@ def main(settings: ExperimentSettings) -> None:
         tags=settings.wandb_tags,
     )
 
-    experiment_data = (
+    experiment_data = cast(
+        AdvOptExperimentData,  # pyright needs this unfortunately
         get_experiment_data_cached(task_name=settings.task.task_name)  # pyright: ignore  # mistake in pyright
         if settings.use_experiment_cache
-        else get_standard_experiment_data(task_name=settings.task.task_name)
+        else get_standard_experiment_data(task_name=settings.task.task_name),
     )
     assert experiment_data is not None
     experiment_data.masked_runner.masked_transformer.freeze_weights()
