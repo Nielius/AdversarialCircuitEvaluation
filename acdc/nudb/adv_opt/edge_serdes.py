@@ -4,7 +4,7 @@ from acdc.TLACDCEdge import Edge, IndexedHookPointName, TorchIndex
 
 
 class EdgeJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
+    def default(self, obj):  # pyright: ignore
         if isinstance(obj, Edge):
             return {
                 "_type": "edge",
@@ -24,7 +24,7 @@ class EdgeJSONDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
 
-    def object_hook(self, obj):
+    def object_hook(self, obj):  # pyright: ignore
         if "_type" not in obj:
             return obj
         type = obj["_type"]

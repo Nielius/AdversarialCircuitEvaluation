@@ -72,5 +72,37 @@ extend-select = ["I"]
 ignore = ["F722"]  # the jaxtyping annotations cause F722
 
 [tool.pyright]
-exclude = ["subnetwork_probing/transformer_lens", "submodules"]
+exclude = [
+    # other people's code
+    "subnetwork_probing/transformer_lens",
+    "submodules",
+    # code that is part of the ACDC repo, but has not been cleaned up yet
+    "notebooks",
+    "ims",
+    "experiments",
+    "acdc/tracr_task",
+    "tests/subnetwork_probing/run_edge_sp_tests.py",
+    # these ones below should also be checked in the future
+    "acdc/acdc_graphics.py",
+    "acdc/acdc_utils.py",
+    "acdc/docstring/prompts.py",
+    "acdc/docstring/utils.py",
+    "acdc/global_cache.py",
+    "acdc/greaterthan/utils.py",
+    "acdc/induction/utils.py",
+    "acdc/ioi/ioi_dataset.py",
+    "acdc/ioi/utils.py",
+    "acdc/logic_gates/utils.py",
+    "acdc/main.py",
+    # "acdc/TLACDCEdge.py",
+    # "acdc/TLACDCExperiment.py",
+    "subnetwork_probing/create_reset_networks.py",
+    "subnetwork_probing/launch_all_edge_sp.py",
+    "subnetwork_probing/sp_utils.py",
+    "subnetwork_probing/train_edge_sp.py",
+    "subnetwork_probing/train.py",
+    "tests/acdc/test_acdc.py",
+    "acdc/TLACDCExperiment.py",
+    "acdc/nudb/adv_opt/analysis/2024_02_28_scratch.py",
+]
 

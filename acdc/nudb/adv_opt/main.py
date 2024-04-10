@@ -18,11 +18,11 @@ from acdc.nudb.adv_opt.data_fetchers import (
     get_standard_experiment_data,
 )
 from acdc.nudb.adv_opt.noise_generators import (
-    NoNoiseGenerator,
-    SPNoiseGenerator,
     ClampedSPNoiseGenerator,
     IntermittentNoiseGenerator,
+    NoNoiseGenerator,
     ScheduledNoiseGenerator,
+    SPNoiseGenerator,
 )
 from acdc.nudb.adv_opt.settings import (
     ExperimentArtifacts,
@@ -60,7 +60,7 @@ def main(settings: ExperimentSettings) -> None:
     wandb.login()
     wandb.init(
         project=settings.wandb_project_name or "advopt-input-and-patch",
-        config=omegaconf.OmegaConf.to_container(settings, resolve=True),
+        config=omegaconf.OmegaConf.to_container(settings, resolve=True),  # pyright: ignore
         mode="online" if settings.use_wandb else "disabled",
         name=settings.wandb_run_name,
         group=settings.wandb_group_name,
@@ -68,10 +68,11 @@ def main(settings: ExperimentSettings) -> None:
     )
 
     experiment_data = (
-        get_experiment_data_cached(task_name=settings.task.task_name)
+        get_experiment_data_cached(task_name=settings.task.task_name)  # pyright: ignore  # mistake in pyright
         if settings.use_experiment_cache
         else get_standard_experiment_data(task_name=settings.task.task_name)
     )
+    assert experiment_data is not None
     experiment_data.masked_runner.masked_transformer.freeze_weights()
 
     # stack test_data and validation_data
@@ -120,6 +121,7 @@ def main(settings: ExperimentSettings) -> None:
 
     if settings.task.task_name == AdvOptTaskName.TRACR_REVERSE:
         settings_ = omegaconf.OmegaConf.to_object(settings)
+        assert isinstance(settings_, ExperimentSettings)
         assert isinstance(settings_.task, TracrReverseTaskSpecificSettings)
         if settings_.task.artificially_corrupt_model:
             # in this case, the model is perfect, so we can't do any optimization
@@ -143,6 +145,7 @@ def main(settings: ExperimentSettings) -> None:
                 coefficients=convex_coefficients_with_noise_and_temp,
                 coefficients_patch=convex_coefficients_patch_with_noise_and_temp,
                 edges_to_ablate=list(experiment_data.ablated_edges),
+                retain_patch_gradient=True,
             )
             full_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
                 input_embedded=base_input_embedded,
@@ -151,6 +154,7 @@ def main(settings: ExperimentSettings) -> None:
                 coefficients=convex_coefficients_with_noise_and_temp,
                 coefficients_patch=convex_coefficients_patch_with_noise_and_temp,
                 edges_to_ablate=[],
+                retain_patch_gradient=True,
             )
             negative_loss = -1 * experiment_data.loss_fn(
                 circuit_output,
@@ -172,7 +176,9 @@ def main(settings: ExperimentSettings) -> None:
                         .entropy()
                         .item(),
                         "gradient_norm": torch.norm(convex_coefficients.grad).item(),
+                        "gradient_patch_norm": torch.norm(convex_coefficients_patch.grad).item(),
                         "coefficients_norm": torch.norm(convex_coefficients).item(),
+                        "coefficients_patch_norm": torch.norm(convex_coefficients_patch).item(),
                         "noise_kl_div": F.kl_div(
                             convex_coefficients,
                             convex_coefficients_with_noise_and_temp * temperature,
@@ -213,6 +219,7 @@ def main(settings: ExperimentSettings) -> None:
                     coefficients=convex_coefficients,
                     coefficients_patch=convex_coefficients_patch,
                     edges_to_ablate=list(experiment_data.ablated_edges),
+                    retain_patch_gradient=True,
                 )
                 full_output = experiment_data.masked_runner.run_with_linear_combination_of_input_and_patch(
                     input_embedded=base_input_embedded,
@@ -221,6 +228,7 @@ def main(settings: ExperimentSettings) -> None:
                     coefficients=convex_coefficients,
                     coefficients_patch=convex_coefficients_patch,
                     edges_to_ablate=[],
+                    retain_patch_gradient=True,
                 )
                 negative_loss = -1e5 * experiment_data.loss_fn(
                     circuit_output,
@@ -245,7 +253,7 @@ def main(settings: ExperimentSettings) -> None:
     wandb.finish()
 
 
-def _get_noise_generator(noise_schedule: str, shape: tuple[int]) -> ScheduledNoiseGenerator:
+def _get_noise_generator(noise_schedule: str, shape: tuple[int, ...]) -> ScheduledNoiseGenerator:
     match noise_schedule:
         case "absent":
             return NoNoiseGenerator(shape=shape, device=device)

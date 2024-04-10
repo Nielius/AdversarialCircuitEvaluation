@@ -8,12 +8,12 @@ from typing import (
 
 import torch
 import torch.nn.functional as F
+import wandb
 
 # these introduce several important classes !!!
 from transformer_lens import HookedTransformer
 
 import acdc.docstring.prompts as prompts
-import wandb
 from acdc.acdc_utils import (
     MatchNLLMetric,
     kl_divergence,

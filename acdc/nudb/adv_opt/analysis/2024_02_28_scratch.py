@@ -139,6 +139,8 @@ torch.cdist(outputs_flattened, outputs_flattened)
 for analysis in ioi_experiment_analyses:
     topk = torch.topk(analysis.artifacts.coefficients_init, 10)
     tokenizer = experiment_data.tokenizer
+    assert tokenizer is not None
+    assert analysis.artifacts.base_input is not None
     for token in analysis.artifacts.base_input[topk.indices, :]:
         print(tokenizer.decode(token))
 
@@ -175,13 +177,17 @@ def load_convex_combination(experiment_dir: str, embedder: torch.nn.Module) -> F
 
 
 def load_final_coefficients(experiment_dir: str) -> Float[torch.Tensor, "batch vocab"]:
-    artifacts = ExperimentArtifacts.load(base_dir / experiment_dir / "artifacts")
-    return artifacts.coefficients_final
+    final_coefficients = ExperimentArtifacts.load(base_dir / experiment_dir / "artifacts").coefficients_final
+    assert final_coefficients is not None
+
+    return final_coefficients
 
 
 def load_initial_coefficients(experiment_dir: str) -> Float[torch.Tensor, "batch vocab"]:
-    artifacts = ExperimentArtifacts.load(base_dir / experiment_dir / "artifacts")
-    return artifacts.coefficients_init
+    initial_coefficients = ExperimentArtifacts.load(base_dir / experiment_dir / "artifacts").coefficients_init
+    assert initial_coefficients is not None
+
+    return initial_coefficients
 
 
 embedder = get_embedder()

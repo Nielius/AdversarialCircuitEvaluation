@@ -2,7 +2,7 @@ import json
 import os
 from hashlib import md5
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Iterable, TypeVar
 
 import torch
 from joblib import Memory
@@ -28,8 +28,11 @@ TIn = TypeVar("TIn")
 
 def _deep_map_with_depth(func: Callable[[TIn], Any], x: list | TIn, map_depth: int, current_depth: int) -> Any:
     if current_depth == map_depth:
-        return func(x)
-    return [_deep_map_with_depth(func, xi, map_depth, current_depth + 1) for xi in x]
+        return func(x)  # pyright: ignore
+    if isinstance(x, Iterable):
+        return [_deep_map_with_depth(func, xi, map_depth, current_depth + 1) for xi in x]
+
+    raise ValueError("The input is not iterable and the current depth is not the map depth.")
 
 
 def deep_map_with_depth(func: Callable[[TIn], Any], x: list | TIn, map_depth: int) -> Any:

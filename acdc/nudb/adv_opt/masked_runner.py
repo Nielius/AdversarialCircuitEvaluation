@@ -9,7 +9,7 @@ from transformer_lens import HookedTransformer
 from transformer_lens.hook_points import HookPoint
 
 from acdc.TLACDCEdge import Edge, HookPointName, IndexedHookPointName
-from subnetwork_probing.masked_transformer import EdgeLevelMaskedTransformer, CircuitStartingPointType
+from subnetwork_probing.masked_transformer import CircuitStartingPointType, EdgeLevelMaskedTransformer
 
 
 class MaskedRunner:
@@ -27,9 +27,7 @@ class MaskedRunner:
         assert (
             model.cfg.positional_embedding_type in {"standard"}
         ), "This is a temporary check; I don't know what values are possible here and what to do with them (in terms of whether or not they're using pos embed)"
-        self.masked_transformer = EdgeLevelMaskedTransformer(
-            model=model, starting_point_type=starting_point_type
-        )
+        self.masked_transformer = EdgeLevelMaskedTransformer(model=model, starting_point_type=starting_point_type)
         self.masked_transformer.freeze_weights()
         self._freeze_all_masks()
         self._set_all_masks_to_pos_infty()
@@ -68,7 +66,7 @@ class MaskedRunner:
         parent_index = self._parent_index_per_child[(child.hook_name, parent)]
         # self._mask_logits_dict is dict[HookPointName of child, Num[torch.nn.Parameter, "parent (IndexedHookPoint), TorchIndex of child"]
         # todo: I think child.index.as_index[-1] shows that we're not using the right abstraction here; or maybe it doesn't?
-        self.masked_transformer._mask_parameter_dict[child.hook_name][parent_index][child.index.as_index[-1]] = value
+        self.masked_transformer._mask_parameter_dict[child.hook_name][parent_index][child.index.as_index[-1]] = value  # pyright: ignore
 
     @cached_property
     def all_ablatable_edges(self) -> set[Edge]:
@@ -88,14 +86,21 @@ class MaskedRunner:
     ) -> Iterator[HookedTransformer]:
         """If 'patch_input' is None, do not recalculate the ablation cache. This is useful if you're running the model
         with the same patch input as before, and you don't want to recalculate the ablation cache.
-        It is also useful if you're adding hooks that get in the way of the ablation cache calculation."""
+        It is also useful if you're adding hooks that get in the way of the ablation cache calculation.
+
+        If 'patch_input' is None, 'retain_gradient_for_ablated_edges' is ignored.
+        If 'patch_input' is not None, 'retain_gradient_for_ablated_edges' determines whether the gradient for the patch
+        input is retained in the ablation cache."""
         for edge in edges_to_ablate:
             assert edge in self.all_ablatable_edges  # safety check
             self._set_mask_for_edge(edge.child, edge.parent, float("-inf"))
 
         try:
             if patch_input is not None:
-                self.masked_transformer.calculate_and_store_ablation_cache(patch_input)
+                self.masked_transformer.calculate_and_store_ablation_cache(
+                    patch_input, retain_cache_gradients=retain_patch_gradient
+                )
+
             with self.masked_transformer.with_fwd_hooks() as hooked_model:
                 yield hooked_model
 
@@ -156,7 +161,7 @@ class MaskedRunner:
             ).unsqueeze(dim=0)
             return convex_combination
 
-        self.masked_transformer.calculate_and_store_ablation_cache(patch_input)
+        self.masked_transformer.calculate_and_store_ablation_cache(patch_input, retain_cache_gradients=False)
         with self.hooks(
             fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook)]
         ) as runner_with_convex_combination:
@@ -172,10 +177,15 @@ class MaskedRunner:
         coefficients: Num[torch.Tensor, " batch"],
         coefficients_patch: Num[torch.Tensor, " batch"],
         edges_to_ablate: list[Edge],
+        retain_patch_gradient: bool = False,
     ) -> Float[torch.Tensor, "1 pos vocab"]:
         """'input_embedded' should be the input after the embedding layer.
 
-        'dummy_input' and 'patch_input' should be a single input point (pre-embedding, without batch dim)"""
+        'dummy_input' and 'patch_input' should be a single input point (pre-embedding, without batch dim)
+
+        If 'retain_patch_gradient' is True, make sure to retain the gradient for the patch input by retaining the
+        gradient in the ablation cache.
+        """
 
         def replace_embedding_with_convex_combination_hook(
             hook_point_out: torch.Tensor, hook: HookPoint, verbose=False
@@ -197,8 +207,12 @@ class MaskedRunner:
             return convex_combination
 
         # calculate ablation cache with the convex combination
-        with self.hooks(fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook_patch)]):
-            self.masked_transformer.calculate_and_store_ablation_cache(dummy_input.unsqueeze(0))
+        with self.hooks(
+            fwd_hooks=[("hook_embed", replace_embedding_with_convex_combination_hook_patch)]
+        ) as runner_with_convex_combination:
+            runner_with_convex_combination.masked_transformer.calculate_and_store_ablation_cache(
+                dummy_input.unsqueeze(0), retain_cache_gradients=retain_patch_gradient
+            )
 
         # do forward pass with ablations on convex combination
         with self.hooks(

@@ -9,9 +9,9 @@ from functools import partial
 from typing import Callable, Literal, Optional, TypeVar, Union
 
 import torch
+import wandb
 from transformer_lens.HookedTransformer import HookedTransformer
 
-import wandb
 from acdc.acdc_graphics import log_metrics_to_wandb, show
 from acdc.acdc_utils import extract_info, next_key, shuffle_tensor
 from acdc.global_cache import GlobalCache
@@ -161,6 +161,7 @@ class TLACDCExperiment:
 
         self.using_wandb = bool(wandb_settings)
         if self.using_wandb:
+            assert wandb_settings is not None
             wandb.init(
                 entity=wandb_settings.wandb_entity_name,
                 group=wandb_settings.wandb_group_name,

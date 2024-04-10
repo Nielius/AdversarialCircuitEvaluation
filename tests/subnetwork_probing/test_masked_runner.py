@@ -8,8 +8,8 @@ from acdc.ioi.utils import get_all_ioi_things
 from acdc.nudb.adv_opt.data_fetchers import EXPERIMENT_DATA_PROVIDERS, AdvOptExperimentData, AdvOptTaskName
 from acdc.tracr_task.utils import get_all_tracr_things
 from subnetwork_probing.masked_transformer import (
-    create_mask_parameters_and_forward_cache_hook_points,
     CircuitStartingPointType,
+    create_mask_parameters_and_forward_cache_hook_points,
 )
 
 
@@ -278,6 +278,7 @@ class TestMaskedRunner:
             coefficients=coefficients,
             coefficients_patch=coefficients_patch,
             edges_to_ablate=list(experiment_data_fixture.ablated_edges),
+            retain_patch_gradient=True,
         )
 
         output.norm().backward()
@@ -341,6 +342,7 @@ class TestMaskedRunner:
             coefficients=coefficients_test_convexpatch,
             coefficients_patch=coefficients_other,
             edges_to_ablate=[],
+            retain_patch_gradient=False,
         )
         output_convexpatch.norm().backward()
 
@@ -354,12 +356,14 @@ class TestMaskedRunner:
             coefficients=coefficients_other,  # deliberately switched around
             coefficients_patch=coefficients_test_convexpatch_onpatch,  # deliberately switched around
             edges_to_ablate=list(masked_runner.all_ablatable_edges),
+            retain_patch_gradient=True,
         )
         output_convexpatch_onpatch.norm().backward()
 
         assert coefficients_test_singlepatch.grad is not None
         assert coefficients_test_convexpatch.grad is not None
         assert coefficients_test_convexpatch_onpatch.grad is not None
+        assert coefficients_test_singlepatch_allablated.grad is not None
 
         assert not torch.allclose(coefficients_test_singlepatch.grad, torch.tensor(0.0, dtype=torch.float32))
         assert torch.allclose(coefficients_test_singlepatch_allablated.grad, torch.tensor(0.0, dtype=torch.float32))

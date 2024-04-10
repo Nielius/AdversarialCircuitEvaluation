@@ -4,6 +4,7 @@ from typing import Iterator, MutableMapping
 # these introduce several important classes !!!
 from acdc.acdc_utils import OrderedDefaultdict, make_nd_dict
 from acdc.TLACDCEdge import (
+    Edge,
     EdgeCollection,
     EdgeInfo,
     EdgeType,
@@ -56,8 +57,10 @@ class TLACDCCorrespondence:
 
                         if not present_only or edge_info.present:
                             yield EdgeWithInfo(
-                                child=IndexedHookPointName(hook_name=parent_name, index=parent_index),
-                                parent=IndexedHookPointName(hook_name=child_name, index=child_index),
+                                edge=Edge(
+                                    child=IndexedHookPointName(hook_name=child_name, index=child_index),
+                                    parent=IndexedHookPointName(hook_name=parent_name, index=parent_index),
+                                ),
                                 edge_info=edge_info,
                             )
 

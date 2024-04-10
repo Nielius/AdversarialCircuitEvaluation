@@ -23,9 +23,12 @@ artifacts = ExperimentArtifacts.load(artifact_dir)
 
 # Print the topk inputs that break the circuit the most
 coeffs = artifacts.coefficients_final
+assert coeffs is not None
 base_input = artifacts.base_input
+assert base_input is not None
 topk = torch.topk(coeffs, 10)
 tokenizer = experiment_data.masked_runner.masked_transformer.model.tokenizer
+assert tokenizer is not None
 for token in base_input[topk.indices, :]:
     print(tokenizer.decode(token))
 

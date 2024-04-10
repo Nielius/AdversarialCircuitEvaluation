@@ -195,7 +195,7 @@ def main(
         ),
     )
 
-    collected_metrics: dict[CirctuitType, Float[torch.Tensor, " batch"]] = {}
+    collected_metrics: dict[str, Float[torch.Tensor, " batch"]] = {}
 
     random_circuit = experiment.random_circuit()
 

@@ -8,9 +8,9 @@ import random
 from typing import Callable
 
 import torch
+import wandb
 from tqdm import tqdm
 
-import wandb
 from acdc.acdc_utils import reset_network
 from acdc.docstring.utils import (
     AllDataThings,

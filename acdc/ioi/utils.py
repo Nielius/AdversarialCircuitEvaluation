@@ -323,7 +323,7 @@ def get_ioi_true_edges(model) -> dict[EdgeAsTuple, bool]:
     ret = OrderedDict(
         {
             # computationally dependent child first, parent second
-            (t[2], t[3].hashable_tuple, t[0], t[1].hashable_tuple): e.present
+            (t[0], t[1].hashable_tuple, t[2], t[3].hashable_tuple): e.present
             for t, e in corr.edge_dict().items()
             if e.present
         }

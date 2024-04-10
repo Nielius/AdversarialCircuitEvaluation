@@ -12,11 +12,11 @@ class ScheduledNoiseGenerator(ABC):
 
 
 class NoNoiseGenerator(ScheduledNoiseGenerator):
-    shape: tuple[int]
+    shape: tuple[int, ...]
     noise: torch.Tensor
-    device: torch.device
+    device: torch.device | str
 
-    def __init__(self, shape: tuple[int], device: torch.device):
+    def __init__(self, shape: tuple[int, ...], device: torch.device | str):
         self.shape = shape
         self.noise = torch.zeros(shape, device=device)
         self.device = device
@@ -28,10 +28,10 @@ class NoNoiseGenerator(ScheduledNoiseGenerator):
 class SPNoiseGenerator(ScheduledNoiseGenerator):
     """This noise is basically what subnetwork probing is doing."""
 
-    shape: tuple[int]
-    device: torch.device
+    shape: tuple[int, ...]
+    device: torch.device | str
 
-    def __init__(self, shape: tuple[int], device: torch.device):
+    def __init__(self, shape: tuple[int, ...], device: torch.device | str):
         self.shape = shape
         self.device = device
 
@@ -42,12 +42,12 @@ class SPNoiseGenerator(ScheduledNoiseGenerator):
 
 
 class ClampedSPNoiseGenerator(ScheduledNoiseGenerator):
-    shape: tuple[int]
-    device: torch.device
+    shape: tuple[int, ...]
+    device: torch.device | str
     max: float
     scaling: float
 
-    def __init__(self, shape: tuple[int], device: torch.device, max: float, scaling: float = 1.0):
+    def __init__(self, shape: tuple[int, ...], device: torch.device | str, max: float, scaling: float = 1.0):
         self.shape = shape
         self.device = device
         self.max = max
@@ -66,16 +66,16 @@ class IntermittentNoiseGenerator(ScheduledNoiseGenerator):
 
     base_generator: ScheduledNoiseGenerator
     no_noise_generator: NoNoiseGenerator
-    shape: tuple[int]
-    device: torch.device
+    shape: tuple[int, ...]
+    device: torch.device | str
     noise_epoch_length: int
     no_noise_epoch_length: int
 
     def __init__(
         self,
         base_generator: ScheduledNoiseGenerator,
-        shape: tuple[int],
-        device: torch.device,
+        shape: tuple[int, ...],
+        device: torch.device | str,
         noise_epoch_length: int,
         no_noise_epoch_length: int,
     ):

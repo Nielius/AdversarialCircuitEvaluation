@@ -76,17 +76,21 @@ class ExperimentAnalysis:
 
         Use the initial coefficients instead of the final coefficients if final_coefficients is False."""
         coeffs = self.artifacts.coefficients_final if final_coefficients else self.artifacts.coefficients_init
+        assert coeffs is not None
         return torch.topk(coeffs, k)
 
     def topk_inputs_decoded(self, tokenizer, k: int = 10, final_coefficients: bool = True) -> list[str]:
         topk = self.topk_inputs(k, final_coefficients)
+        assert self.artifacts.base_input is not None
         return [tokenizer.decode(token) for token in self.artifacts.base_input[topk.indices, :]]
 
     def topk_input_score(
         self, experiment_data: AdvOptExperimentData, k: int = 10, final_coefficients: bool = True
     ) -> Float[torch.Tensor, " batch"]:
         topk = self.topk_inputs(k, final_coefficients)
-        return self.artifacts.coefficients_final[topk.indices]
+        coefficients = self.artifacts.coefficients_final
+        assert coefficients is not None
+        return coefficients[topk.indices]
 
     def outputs_for_topk_inputs(
         self, experiment_data: AdvOptExperimentData, k: int = 10, circuit: bool = True, final_coefficients: bool = True
@@ -95,6 +99,7 @@ class ExperimentAnalysis:
         topk = self.topk_inputs(k, final_coefficients)
         # Decode input:
         # [experiment_data.tokenizer.decode(token) for token in experiment_data.task_data.test_patch_data[0, ...]]
+        assert self.artifacts.base_input is not None
         return experiment_data.masked_runner.run(
             input=self.artifacts.base_input[topk.indices, :],
             patch_input=experiment_data.task_data.test_patch_data[0, ...],

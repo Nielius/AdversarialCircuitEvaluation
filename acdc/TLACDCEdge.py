@@ -69,23 +69,20 @@ class TorchIndex:
     Note: ideally this would be integrated with transformer_lens.utils.Slice in future; they are accomplishing similar but different things
     """
 
+    as_index: tuple[int | slice, ...]
+    hashable_tuple: tuple[int | None, ...]
+
     def __init__(
         self,
-        list_of_things_in_tuple: Iterable[int] | None,
+        indices: Iterable[int | None],
     ):
-        # check correct types
-        for arg in list_of_things_in_tuple:
-            if type(arg) in [type(None), int]:
-                continue
-            else:
-                assert isinstance(arg, Iterable)
-                assert all([type(x) == int for x in arg])  # noqa: E721
+        assert all(isinstance(index, int) or index is None for index in indices)
 
         # make an object that can be indexed into a tensor
-        self.as_index = tuple(x if x is not None else slice(None) for x in list_of_things_in_tuple)
+        self.as_index = tuple(index if index is not None else slice(None) for index in indices)
 
         # make an object that can be hashed (so used as a dictionary key)
-        self.hashable_tuple = tuple(list_of_things_in_tuple)
+        self.hashable_tuple = tuple(indices)
 
     def __hash__(self):
         return hash(self.hashable_tuple)
@@ -154,6 +151,12 @@ class IndexedHookPointName:
             ]
 
 
+# TODO: this is basically the same as EdgeAsTuple; maybe deprecate one or the other?
+EdgeAsTupleWithTorchIndex: TypeAlias = tuple[
+    str, TorchIndex, str, TorchIndex
+]  # child first, parent second; the child is computationally dependent on the parent
+
+
 @dataclass(eq=True, frozen=True, slots=True)
 class Edge:
     """An edge in the computational graph, pointing from parent to child. The child is a dependency of the parent."""
@@ -181,32 +184,35 @@ class Edge:
             parent=IndexedHookPointName(hook_name=parent_hook_name, index=parent_hook_torch_index),
         )
 
-
-@dataclass
-class EdgeWithInfo:
-    """An edge in the computational graph, pointing from parent to child."""
-
-    child: IndexedHookPointName
-    parent: IndexedHookPointName
-    edge_info: EdgeInfo
-
-    def __repr__(self) -> str:
-        return f"Edge({self.child}, {self.parent}, {self.edge_info})"
-
-    def __str__(self) -> str:
-        return f"{self.child} -> {self.parent} ({self.edge_info})"
-
-    def to_tuple_format(
-        self,
-    ) -> tuple[tuple[HookPointName, TorchIndex, HookPointName, TorchIndex], EdgeInfo]:
+    def to_tuple_format(self) -> EdgeAsTupleWithTorchIndex:
         """This is the format used by the TLACDCCorrespondence object. Might want to deprecate it."""
         return (
             self.child.hook_name,
             self.child.index,
             self.parent.hook_name,
             self.parent.index,
-        ), self.edge_info
+        )
 
 
-# I think i want to deprecate this kind of object
+@dataclass
+class EdgeWithInfo:
+    """An edge in the computational graph, pointing from parent to child."""
+
+    edge: Edge
+    edge_info: EdgeInfo
+
+    def __repr__(self) -> str:
+        return f"Edge({self.edge.child}, {self.edge.parent}, {self.edge_info})"
+
+    def __str__(self) -> str:
+        return f"{self.edge.child} <- {self.edge.parent} ({self.edge_info})"
+
+    def to_tuple_format(
+        self,
+    ) -> tuple[EdgeAsTupleWithTorchIndex, EdgeInfo]:
+        """This is the format used by the TLACDCCorrespondence object. Might want to deprecate it."""
+        return self.edge.to_tuple_format(), self.edge_info
+
+
+# I think I want to deprecate this kind of object
 EdgeCollection: TypeAlias = dict[tuple[HookPointName, TorchIndex, HookPointName, TorchIndex], EdgeInfo]

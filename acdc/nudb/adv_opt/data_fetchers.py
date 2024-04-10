@@ -1,7 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
-from functools import partial, cached_property
+from functools import cached_property, partial
 from typing import Callable
 
 import torch
@@ -14,13 +14,14 @@ from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
 from acdc.nudb.adv_opt.loss_fn import kl_div_on_output_logits
 from acdc.nudb.adv_opt.masked_runner import MaskedRunner
 from acdc.nudb.adv_opt.utils import device
-from acdc.TLACDCEdge import Edge, IndexedHookPointName
+from acdc.TLACDCEdge import Edge
 from acdc.tracr_task.utils import get_all_tracr_things, get_tracr_proportion_edges, get_tracr_reverse_edges
+from acdc.types import EdgeAsTuple
 from subnetwork_probing.masked_transformer import CircuitStartingPointType
 
 
-def edge_tuples_to_dataclass(true_edges: dict[tuple[IndexedHookPointName, IndexedHookPointName], bool]) -> list[Edge]:
-    return [Edge.from_tuple_format(*tuple) for tuple, is_present in true_edges.items() if is_present]
+def edge_tuples_to_dataclass(true_edges: dict[EdgeAsTuple, bool]) -> list[Edge]:
+    return [Edge.from_tuple_format(*t) for t, is_present in true_edges.items() if is_present]
 
 
 class AdvOptTaskName(str, Enum):
@@ -49,7 +50,9 @@ class AdvOptExperimentData:
 
     @property
     def tokenizer(self):
-        return self.masked_runner.masked_transformer.model.tokenizer
+        tokenizer = self.masked_runner.masked_transformer.model.tokenizer
+        assert tokenizer is not None
+        return tokenizer
 
     @property
     def embedder(self) -> torch.nn.Module:
