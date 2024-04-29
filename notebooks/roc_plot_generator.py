@@ -53,9 +53,9 @@ import plotly.graph_objects as go
 import pygraphviz as pgv
 import requests
 import torch
+import wandb
 from tqdm import tqdm
 
-import wandb
 from acdc.acdc_graphics import (
     show,
 )

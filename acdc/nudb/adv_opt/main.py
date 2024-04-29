@@ -13,6 +13,11 @@ from hydra.core.config_store import ConfigStore
 from jaxtyping import Integer
 from torch.optim.lr_scheduler import StepLR
 
+from acdc.nudb.adv_opt.adam_lr_scheduler import (
+    GradientAdamLRScheduler,
+    GradientBasedAdamLRScheduler,
+    GradientWatchingAdamLRScheduler,
+)
 from acdc.nudb.adv_opt.data_fetchers import (
     AdvOptExperimentData,
     AdvOptTaskName,
@@ -26,6 +31,7 @@ from acdc.nudb.adv_opt.noise_generators import (
     SPNoiseGenerator,
 )
 from acdc.nudb.adv_opt.settings import (
+    CoefficientRenormalization,
     ExperimentArtifacts,
     ExperimentSettings,
     TaskSpecificSettings,
@@ -67,6 +73,7 @@ def main(settings: ExperimentSettings) -> None:
         group=settings.wandb_group_name,
         tags=settings.wandb_tags,
     )
+    wandb.define_metric("loss", summary="max", goal="maximize")  # creates wandb summary statistic
 
     experiment_data = cast(
         AdvOptExperimentData,  # pyright needs this unfortunately
@@ -113,6 +120,10 @@ def main(settings: ExperimentSettings) -> None:
             scheduler = StepLR(optimizer, step_size=100, gamma=2)
         case "step_decrease":
             scheduler = StepLR(optimizer, step_size=int(0.1 * settings.num_epochs), gamma=0.5)
+        case "gradient_based":
+            scheduler = GradientBasedAdamLRScheduler(optimizer, base_lr=settings.adam_lr, ceiling_lr=2.0)
+        case "gradient_watching":
+            scheduler = GradientWatchingAdamLRScheduler(optimizer, base_lr=settings.adam_lr)
         case _:
             raise NotImplementedError(f"Unknown learning rate schedule: {settings.adam_lr_schedule}")
 
@@ -165,6 +176,7 @@ def main(settings: ExperimentSettings) -> None:
             negative_loss.backward()
 
             with torch.no_grad():
+                gradient_norm = torch.norm(convex_coefficients.grad).item()
                 wandb.log(
                     {
                         "loss": -1 * negative_loss,
@@ -177,10 +189,14 @@ def main(settings: ExperimentSettings) -> None:
                         "coefficients_patch_entropy": torch.distributions.Categorical(logits=convex_coefficients_patch)
                         .entropy()
                         .item(),
-                        "gradient_norm": torch.norm(convex_coefficients.grad).item(),
+                        "gradient_norm": gradient_norm,
                         "gradient_patch_norm": torch.norm(convex_coefficients_patch.grad).item(),
                         "coefficients_norm": torch.norm(convex_coefficients).item(),
                         "coefficients_patch_norm": torch.norm(convex_coefficients_patch).item(),
+                        "coefficients_hist": wandb.Histogram(convex_coefficients.detach().cpu()),  # pyright: ignore
+                        "coefficients_patch_hist": wandb.Histogram(convex_coefficients_patch.detach().cpu()),  # pyright: ignore
+                        "gradient_hist": wandb.Histogram(convex_coefficients.grad.detach().cpu()),  # pyright: ignore
+                        "gradient_patch_hist": wandb.Histogram(convex_coefficients_patch.grad.detach().cpu()),  # pyright: ignore
                         "noise_kl_div": F.kl_div(
                             convex_coefficients,
                             convex_coefficients_with_noise_and_temp * temperature,
@@ -200,14 +216,38 @@ def main(settings: ExperimentSettings) -> None:
                     temperature = min(base_temperature, 5 * base_temperature * (1 - (i / settings.num_epochs)) + 1e-4)
                 case "constant_low":
                     temperature = 0.8
+                case "constant":
+                    pass  # keep it whatever it was
                 case "linear":
                     temperature = 0.0001 + 1 - i / settings.num_epochs
 
             if scheduler is not None:
-                scheduler.step()
+                if isinstance(scheduler, GradientAdamLRScheduler):
+                    scheduler.step(gradient_norm)
+                else:
+                    scheduler.step()
+
+            if (
+                settings.coefficient_renormalization == CoefficientRenormalization.halving
+            ):  # this is for halving the coefficients; update code while it is running
+                if i % 100 == 0:
+                    with torch.no_grad():
+                        convex_coefficients.div_(2.0)
+                        convex_coefficients_patch.div_(2.0)
+            elif settings.coefficient_renormalization == CoefficientRenormalization.baseline:
+                if i % 100 == 0:
+                    with torch.no_grad():
+                        convex_coefficients.div_(torch.norm(convex_coefficients) / (i / 5))
+                        convex_coefficients_patch.div_(torch.norm(convex_coefficients_patch) / (i / 5))
+            elif settings.coefficient_renormalization == CoefficientRenormalization.gradual:
+                epoch_period = 10
+                factor = 0.9
+                if i % epoch_period == 0:
+                    with torch.no_grad():
+                        convex_coefficients.mul_(factor)
+                        convex_coefficients_patch.mul_(factor)
 
             logger.info(f"Epoch {i}, loss: {-1 * negative_loss.item()}")
-            logger.debug("Convex coefficients:", convex_coefficients)
 
         elif isinstance(optimizer, torch.optim.LBFGS):
 

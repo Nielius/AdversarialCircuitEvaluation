@@ -9,7 +9,7 @@ from joblib import Memory
 
 num_examples = 5
 metric = "kl_div"
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() and os.environ.get("ADVOPT_FORCE_CPU") != "true" else "cpu"
 # device = "cpu"
 
 CIRCUITBENCHMARKS_DATA_DIR = Path(os.environ.get("CIRCUITBENCHMARKS_DATA_DIR", "/tmp/circuitbenchmarks_data"))

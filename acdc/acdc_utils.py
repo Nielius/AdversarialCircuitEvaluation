@@ -8,9 +8,9 @@ from typing import Any, Optional, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+import wandb
 from huggingface_hub import hf_hub_download
 
-import wandb
 from acdc.TLACDCEdge import (
     EdgeType,
     TorchIndex,

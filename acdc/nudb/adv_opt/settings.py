@@ -28,11 +28,18 @@ class OptimizationMethod(str, Enum):
     LBFGS = "lbfgs"
 
 
+class CoefficientRenormalization(str, Enum):
+    none = "none"
+    halving = "halving"
+    baseline = "baseline"
+    gradual = "gradual"
+
+
 @dataclass
 class ExperimentSettings:
     task: TaskSpecificSettings
     num_epochs: int
-    adam_lr: float = 1e-3
+    adam_lr: float = 1e-1
     wandb_project_name: str | None = None
     wandb_run_name: str | None = None
     wandb_group_name: str | None = None
@@ -43,7 +50,8 @@ class ExperimentSettings:
     optimization_method: OptimizationMethod = OptimizationMethod.ADAM
     adam_lr_schedule: str = "constant"
     temperature_schedule: str = "constant"
-    noise_schedule: str = "constant"
+    noise_schedule: str = "absent"
+    coefficient_renormalization: CoefficientRenormalization = CoefficientRenormalization.none
 
 
 @dataclass

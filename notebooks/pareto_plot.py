@@ -17,10 +17,10 @@ import pandas as pd
 import plotly
 import plotly.graph_objects as go
 import torch
+import wandb
 from plotly.subplots import make_subplots
 from tqdm import tqdm
 
-import wandb
 from acdc.acdc_utils import (
     ct,
     get_first_element,

@@ -5,8 +5,8 @@ from typing import Dict, Iterable, Optional, Union
 import numpy as np
 import plotly.graph_objects as go
 import pygraphviz as pgv
-
 import wandb
+
 from acdc.acdc_utils import EdgeType
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
 from acdc.TLACDCEdge import EdgeCollection, HookPointName, TorchIndex

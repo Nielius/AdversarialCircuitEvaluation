@@ -6,12 +6,12 @@ import random
 from typing import Callable, ContextManager, List, Optional
 
 import torch
+import wandb
 from tqdm import tqdm
 from transformer_lens import HookedTransformer
 from transformer_lens.ActivationCache import ActivationCache
 from transformer_lens.hook_points import HookPoint
 
-import wandb
 from acdc.acdc_utils import get_edge_stats, get_node_stats, reset_network
 from acdc.docstring.utils import (
     AllDataThings,

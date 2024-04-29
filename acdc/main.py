@@ -65,9 +65,8 @@ import os
 
 import IPython
 import torch
-from IPython.display import Image, display
-
 import wandb
+from IPython.display import Image, display
 
 try:
     from acdc.tracr_task.utils import (
