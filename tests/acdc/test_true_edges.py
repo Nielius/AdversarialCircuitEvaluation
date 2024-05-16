@@ -1,4 +1,5 @@
-from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
+from acdc.ioi.ioi_data_fetchers import get_all_ioi_things
+from acdc.ioi.utils import get_ioi_true_edges
 from acdc.TLACDCEdge import Edge, IndexedHookPointName, TorchIndex
 
 

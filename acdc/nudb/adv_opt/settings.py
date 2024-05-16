@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
@@ -20,6 +20,12 @@ class TracrReverseTaskSpecificSettings(TaskSpecificSettings):
     metric_name: str = "l2"
 
     artificially_corrupt_model: bool = True
+
+
+@dataclass
+class IOITaskSpecificSettings(TaskSpecificSettings):
+    prompt_template_index: int = 0
+    names_order: list[str] = field(default_factory=lambda: list("ABBA"))
 
 
 class OptimizationMethod(str, Enum):

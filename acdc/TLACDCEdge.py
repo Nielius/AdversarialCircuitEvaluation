@@ -88,7 +88,19 @@ class TorchIndex:
         return hash(self.hashable_tuple)
 
     def __eq__(self, other):
+        if not isinstance(other, TorchIndex):
+            return NotImplemented
         return self.hashable_tuple == other.hashable_tuple
+
+    def __le__(self, other):
+        if not isinstance(other, TorchIndex):
+            return NotImplemented
+        return self.hashable_tuple <= other.hashable_tuple
+
+    def __lt__(self, other):
+        if not isinstance(other, TorchIndex):
+            return NotImplemented
+        return self.hashable_tuple < other.hashable_tuple
 
     # some graphics things
 
@@ -120,7 +132,7 @@ def is_attn_hook_point(name: HookPointName) -> bool:
     return True
 
 
-@dataclass(eq=True, frozen=True, slots=True)
+@dataclass(eq=True, frozen=True, slots=True, order=True)
 class IndexedHookPointName:
     hook_name: HookPointName
     index: TorchIndex
@@ -157,12 +169,12 @@ EdgeAsTupleWithTorchIndex: TypeAlias = tuple[
 ]  # child first, parent second; the child is computationally dependent on the parent
 
 
-@dataclass(eq=True, frozen=True, slots=True)
+@dataclass(eq=True, frozen=True, slots=True, order=True, kw_only=True)
 class Edge:
     """An edge in the computational graph, pointing from parent to child. The child is a dependency of the parent."""
 
-    child: IndexedHookPointName
     parent: IndexedHookPointName
+    child: IndexedHookPointName
 
     @classmethod
     def from_tuple_format(

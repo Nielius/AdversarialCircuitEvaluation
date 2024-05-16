@@ -13,107 +13,7 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer
 
-NAMES = [
-    "Michael",
-    "Christopher",
-    "Jessica",
-    "Matthew",
-    "Ashley",
-    "Jennifer",
-    "Joshua",
-    "Amanda",
-    "Daniel",
-    "David",
-    "James",
-    "Robert",
-    "John",
-    "Joseph",
-    "Andrew",
-    "Ryan",
-    "Brandon",
-    "Jason",
-    "Justin",
-    "Sarah",
-    "William",
-    "Jonathan",
-    "Stephanie",
-    "Brian",
-    "Nicole",
-    "Nicholas",
-    "Anthony",
-    "Heather",
-    "Eric",
-    "Elizabeth",
-    "Adam",
-    "Megan",
-    "Melissa",
-    "Kevin",
-    "Steven",
-    "Thomas",
-    "Timothy",
-    "Christina",
-    "Kyle",
-    "Rachel",
-    "Laura",
-    "Lauren",
-    "Amber",
-    "Brittany",
-    "Danielle",
-    "Richard",
-    "Kimberly",
-    "Jeffrey",
-    "Amy",
-    "Crystal",
-    "Michelle",
-    "Tiffany",
-    "Jeremy",
-    "Benjamin",
-    "Mark",
-    "Emily",
-    "Aaron",
-    "Charles",
-    "Rebecca",
-    "Jacob",
-    "Stephen",
-    "Patrick",
-    "Sean",
-    "Erin",
-    "Jamie",
-    "Kelly",
-    "Samantha",
-    "Nathan",
-    "Sara",
-    "Dustin",
-    "Paul",
-    "Angela",
-    "Tyler",
-    "Scott",
-    "Katherine",
-    "Andrea",
-    "Gregory",
-    "Erica",
-    "Mary",
-    "Travis",
-    "Lisa",
-    "Kenneth",
-    "Bryan",
-    "Lindsey",
-    "Kristen",
-    "Jose",
-    "Alexander",
-    "Jesse",
-    "Katie",
-    "Lindsay",
-    "Shannon",
-    "Vanessa",
-    "Courtney",
-    "Christine",
-    "Alicia",
-    "Cody",
-    "Allison",
-    "Bradley",
-    "Samuel",
-]
+from acdc.ioi.ioi_dataset_constants import ANIMALS, NAMES, OBJECTS, PLACES
 
 ABC_TEMPLATES = [
     "Then, [A], [B] and [C] went to the [PLACE]. [B] and [C] gave a [OBJECT] to [A]",
@@ -182,141 +82,111 @@ BABA_EARLY_IOS = [
     "Then [B] and [A] had a long argument, and afterwards [B] said to [A]",
 ]
 
-TEMPLATES_VARIED_MIDDLE = [
-    "",
-]
-
 # no end of texts, GPT-2 small wasn't trained this way (ask Arthur)
 # warnings.warn("Adding end of text prefixes!")
 # for TEMPLATES in [BABA_TEMPLATES, BABA_EARLY_IOS, BABA_LATE_IOS]:
 #     for i in range(len(TEMPLATES)):
 #         TEMPLATES[i] = "<|endoftext|>" + TEMPLATES[i]
 
-ABBA_TEMPLATES = BABA_TEMPLATES[:]
-ABBA_LATE_IOS = BABA_LATE_IOS[:]
-ABBA_EARLY_IOS = BABA_EARLY_IOS[:]
 
-for TEMPLATES in [ABBA_TEMPLATES, ABBA_LATE_IOS, ABBA_EARLY_IOS]:
-    for i in range(len(TEMPLATES)):
+def _switch_first_ab_pair(TEMPLATES: list[str]) -> list[str]:
+    result = TEMPLATES[:]
+    for i in range(len(result)):
         first_clause = True
-        for j in range(1, len(TEMPLATES[i]) - 1):
-            if TEMPLATES[i][j - 1 : j + 2] == "[B]" and first_clause:
-                TEMPLATES[i] = TEMPLATES[i][:j] + "A" + TEMPLATES[i][j + 1 :]
-            elif TEMPLATES[i][j - 1 : j + 2] == "[A]" and first_clause:
+        for j in range(1, len(result[i]) - 1):
+            if result[i][j - 1 : j + 2] == "[B]" and first_clause:
+                result[i] = result[i][:j] + "A" + result[i][j + 1 :]
+            elif result[i][j - 1 : j + 2] == "[A]" and first_clause:
                 first_clause = False
-                TEMPLATES[i] = TEMPLATES[i][:j] + "B" + TEMPLATES[i][j + 1 :]
-
-VERBS = [" tried", " said", " decided", " wanted", " gave"]
-PLACES = [
-    "store",
-    "garden",
-    "restaurant",
-    "school",
-    "hospital",
-    "office",
-    "house",
-    "station",
-]
-OBJECTS = [
-    "ring",
-    "kiss",
-    "bone",
-    "basketball",
-    "computer",
-    "necklace",
-    "drink",
-    "snack",
-]
-
-ANIMALS = [
-    "dog",
-    "cat",
-    "snake",
-    "elephant",
-    "beetle",
-    "hippo",
-    "giraffe",
-    "tiger",
-    "husky",
-    "lion",
-    "panther",
-    "whale",
-    "dolphin",
-    "beaver",
-    "rabbit",
-    "fox",
-    "lamb",
-    "ferret",
-]
+                result[i] = result[i][:j] + "B" + result[i][j + 1 :]
+    return result
 
 
-NOUNS_DICT = {"[PLACE]": PLACES, "[OBJECT]": OBJECTS}
+ABBA_TEMPLATES = _switch_first_ab_pair(BABA_TEMPLATES)
+ABBA_LATE_IOS = _switch_first_ab_pair(BABA_LATE_IOS)
+ABBA_EARLY_IOS = _switch_first_ab_pair(BABA_EARLY_IOS)
 
 
-def gen_prompt_uniform(
-    templates,
-    names,
-    nouns_dict,
-    N,
-    symmetric,
+def generate_prompts_uniform(
+    templates: list[str],
+    names: list[str],
+    nouns_dict: dict[str, list[str]],
+    N: int,
+    symmetric: bool,
+    seed: int,
     prefixes=None,
-    abc=False,
-    seed=None,
-):
+    abc: bool = False,
+) -> list[dict]:
+    """Returns a list of dicts that look like.
+
+    Q: why "uniform"? Uniform probability on each name and place etc?
+
+    {'[PLACE]': 'store',
+      '[OBJECT]': 'ring',
+      'text': 'After Sean and Jessica went to the store, Sean gave a ring to Jessica',
+      'IO': 'Jessica',
+      'S': 'Sean',
+      'TEMPLATE_IDX': 5}
+
+    (Should have been a dataclass.)
+
+    Params:
+
+    - if symmetric is 'True', for each generated prompt, also generate the prompt that has the names flipped
+    - nouns_dict: for each placeholder in the template, provide a list of possible words to fill in
+    - abc: if True, assume that there are three names: A, B, and C; otherwise, assume only the names A and B
+    """
     assert seed is not None
     rng = random.Random(seed)
 
-    nb_gen = 0
-    ioi_prompts = []
-    while nb_gen < N:
-        temp = rng.choice(templates)
-        temp_id = templates.index(temp)
-        name_1 = ""
-        name_2 = ""
-        name_3 = ""
-        while len(set([name_1, name_2, name_3])) < 3:
-            name_1 = rng.choice(names)
-            name_2 = rng.choice(names)
-            name_3 = rng.choice(names)
+    results = []
 
-        nouns = {}
+    while len(results) < N:
         ioi_prompt = {}
-        for k in nouns_dict:
-            nouns[k] = rng.choice(nouns_dict[k])
-            ioi_prompt[k] = nouns[k]
-        prompt = temp
-        for k in nouns_dict:
-            prompt = prompt.replace(k, nouns[k])
+
+        template = rng.choice(templates)
+        template_id = templates.index(template)
+        name_1, name_2, name_3 = rng.sample(names, 3)
+
+        nouns = {noun: rng.choice(nouns_dict[noun]) for noun in nouns_dict}
+        ioi_prompt.update(nouns)
 
         if prefixes is not None:
             L = rng.randint(30, 40)
-            pref = ".".join(rng.choice(prefixes).split(".")[:L])
-            pref += "<|endoftext|>"
+            prefix = ".".join(rng.choice(prefixes).split(".")[:L])
+            prefix += "<|endoftext|>"
         else:
-            pref = ""
+            prefix = ""
+
+        prompt = template
+        for noun in nouns_dict:
+            prompt = prompt.replace(noun, nouns[noun])
 
         prompt1 = prompt.replace("[A]", name_1)
         prompt1 = prompt1.replace("[B]", name_2)
         if abc:
             prompt1 = prompt1.replace("[C]", name_3)
-        prompt1 = pref + prompt1
+        prompt1 = prefix + prompt1
         ioi_prompt["text"] = prompt1
         ioi_prompt["IO"] = name_1
         ioi_prompt["S"] = name_2
-        ioi_prompt["TEMPLATE_IDX"] = temp_id
-        ioi_prompts.append(ioi_prompt)
+        ioi_prompt["TEMPLATE_IDX"] = template_id
+
         if abc:
-            ioi_prompts[-1]["C"] = name_3
+            ioi_prompt["C"] = name_3
 
-        nb_gen += 1
+        results.append(ioi_prompt)
 
-        if symmetric and nb_gen < N:
-            prompt2 = prompt.replace("[A]", name_2)
-            prompt2 = prompt2.replace("[B]", name_1)
-            prompt2 = pref + prompt2
-            ioi_prompts.append({"text": prompt2, "IO": name_2, "S": name_1, "TEMPLATE_IDX": temp_id})
-            nb_gen += 1
-    return ioi_prompts
+        if symmetric and len(results) < N:
+            results.append(
+                {
+                    "text": (prefix + prompt.replace("[A]", name_2).replace("[B]", name_1)),
+                    "IO": name_2,
+                    "S": name_1,
+                    "TEMPLATE_IDX": template_id,
+                }
+            )
+    return results
 
 
 def gen_flipped_prompts(prompts, names, flip=("S2", "IO"), seed=None):
@@ -638,17 +508,17 @@ def flip_names(ioi_prompts):
 class IOIDataset:
     def __init__(
         self,
-        prompt_type: Union[str, list[str]],  # if list, then it will be a list of templates
-        N=500,
+        prompt_type: Union[str, list[str]],
+        seed: int,
+        N: int = 500,
         tokenizer=None,
         prompts=None,
         symmetric=False,
         prefixes=None,
-        nb_templates=None,
+        num_templates=None,
         ioi_prompts_for_word_idxs=None,
         prepend_bos=False,
         manual_word_idx=None,
-        seed=None,
     ):
         """
         ioi_prompts_for_word_idxs:
@@ -657,32 +527,32 @@ class IOIDataset:
         """
 
         assert seed is not None
-        random.seed(seed)
+        rng = random.Random(seed)
 
         if not (N == 1 or prepend_bos is False or tokenizer.bos_token_id == tokenizer.eos_token_id):
             warnings.warn("Probably word_idx will be calculated incorrectly due to this formatting")
         assert not (symmetric and prompt_type == "ABC")
         assert (prompts is not None) or (not symmetric) or (N % 2 == 0), f"{symmetric} {N}"
-        assert nb_templates is None or (nb_templates % 2 == 0 or prompt_type != "mixed")
+        assert num_templates is None or (num_templates % 2 == 0 or prompt_type != "mixed")
         self.prompt_type = prompt_type
 
-        if nb_templates is None:
-            nb_templates = len(BABA_TEMPLATES)
+        if num_templates is None:
+            num_templates = len(BABA_TEMPLATES)
 
         if prompt_type == "ABBA":
-            self.templates = ABBA_TEMPLATES[:nb_templates].copy()
+            self.templates = ABBA_TEMPLATES[:num_templates].copy()
         elif prompt_type == "BABA":
-            self.templates = BABA_TEMPLATES[:nb_templates].copy()
+            self.templates = BABA_TEMPLATES[:num_templates].copy()
         elif prompt_type == "mixed":
-            self.templates = BABA_TEMPLATES[: nb_templates // 2].copy() + ABBA_TEMPLATES[: nb_templates // 2].copy()
-            random.shuffle(self.templates)
+            self.templates = BABA_TEMPLATES[: num_templates // 2].copy() + ABBA_TEMPLATES[: num_templates // 2].copy()
+            rng.shuffle(self.templates)
         elif prompt_type == "ABC":
-            self.templates = ABC_TEMPLATES[:nb_templates].copy()
+            self.templates = ABC_TEMPLATES[:num_templates].copy()
         elif prompt_type == "BAC":
-            self.templates = BAC_TEMPLATES[:nb_templates].copy()
+            self.templates = BAC_TEMPLATES[:num_templates].copy()
         elif prompt_type == "ABC mixed":
-            self.templates = ABC_TEMPLATES[: nb_templates // 2].copy() + BAC_TEMPLATES[: nb_templates // 2].copy()
-            random.shuffle(self.templates)
+            self.templates = ABC_TEMPLATES[: num_templates // 2].copy() + BAC_TEMPLATES[: num_templates // 2].copy()
+            rng.shuffle(self.templates)
         elif isinstance(prompt_type, list):
             self.templates = prompt_type
         else:
@@ -697,15 +567,15 @@ class IOIDataset:
         self.prefixes = prefixes
         self.prompt_type = prompt_type
         if prompts is None:
-            self.ioi_prompts = gen_prompt_uniform(  # a list of dict of the form {"text": "Alice and Bob bla bla. Bob gave bla to Alice", "IO": "Alice", "S": "Bob"}
+            self.ioi_prompts = generate_prompts_uniform(
                 self.templates,
                 NAMES,
                 nouns_dict={"[PLACE]": PLACES, "[OBJECT]": OBJECTS},
                 N=N,
                 symmetric=symmetric,
+                seed=(seed + 987654321) % 123456789,
                 prefixes=self.prefixes,
                 abc=(prompt_type in ["ABC", "ABC mixed", "BAC"]),
-                seed=(seed + 987654321) % 123456789,
             )
         else:
             assert N == len(prompts), f"{N} and {len(prompts)}"
@@ -737,7 +607,11 @@ class IOIDataset:
 
         # print(self.ioi_prompts, "that's that")
         texts = [(self.tokenizer.bos_token if prepend_bos else "") + prompt["text"] for prompt in self.ioi_prompts]
-        self.toks = torch.Tensor(self.tokenizer(texts, padding=True).input_ids).type(torch.int)
+        self.toks = torch.tensor(
+            self.tokenizer(texts, padding=True).input_ids
+        ).type(
+            torch.int
+        )  # padding is set to True in this code, but actually, we assume in other places that there is never any padding!
 
         if ioi_prompts_for_word_idxs is None:
             ioi_prompts_for_word_idxs = self.ioi_prompts
@@ -834,6 +708,7 @@ class IOIDataset:
 
         flipped_ioi_dataset = IOIDataset(
             prompt_type=self.prompt_type,
+            seed=(seed + 23456) % 963,
             N=self.N,
             tokenizer=self.tokenizer,
             prompts=flipped_prompts,
@@ -841,13 +716,13 @@ class IOIDataset:
             ioi_prompts_for_word_idxs=flipped_prompts if flip[0] == "RAND" else None,
             prepend_bos=self.prepend_bos,
             manual_word_idx=self.word_idx,
-            seed=(seed + 23456) % 963,
         )
         return flipped_ioi_dataset
 
     def copy(self):
         copy_ioi_dataset = IOIDataset(
             prompt_type=self.prompt_type,
+            seed=0,
             N=self.N,
             tokenizer=self.tokenizer,
             prompts=self.ioi_prompts.copy(),
@@ -860,6 +735,7 @@ class IOIDataset:
         sliced_prompts = self.ioi_prompts[key]
         sliced_dataset = IOIDataset(
             prompt_type=self.prompt_type,
+            seed=0,
             N=len(sliced_prompts),
             tokenizer=self.tokenizer,
             prompts=sliced_prompts,
@@ -882,11 +758,3 @@ class IOIDataset:
 
 
 # tests that the templates work as intended
-# assert len(BABA_EARLY_IOS) == len(BABA_LATE_IOS), (len(BABA_EARLY_IOS), len(BABA_LATE_IOS))
-# for i in range(len(BABA_EARLY_IOS)):
-#     d1 = IOIDataset(N=1, prompt_type=BABA_EARLY_IOS[i:i+1])
-#     d2 = IOIDataset(N=1, prompt_type=BABA_LATE_IOS[i:i+1])
-#     for tok in ["IO", "S"]: # occur one earlier and one later
-#         assert d1.word_idx[tok] + 1 == d2.word_idx[tok], (d1.word_idx[tok], d2.word_idx[tok])
-#     for tok in ["S2"]:
-#         assert d1.word_idx[tok] == d2.word_idx[tok], (d1.word_idx[tok], d2.word_idx[tok])

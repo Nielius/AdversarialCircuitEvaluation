@@ -11,8 +11,8 @@ from hydra.core.config_store import ConfigStore
 from icecream import ic
 from jaxtyping import Float, Integer
 
+from acdc.nudb.adv_opt.brute_force.results import CircuitPerformanceDistributionResultsOld
 from acdc.nudb.adv_opt.data_fetchers import AdvOptExperimentData, AdvOptTaskName, get_standard_experiment_data
-from acdc.nudb.adv_opt.main_circuit_performance_distribution import CircuitPerformanceDistributionResults
 from acdc.nudb.adv_opt.utils import deep_map_with_depth
 from acdc.TLACDCEdge import Edge
 
@@ -28,13 +28,13 @@ experiment_path: dict[AdvOptTaskName, Path] = {
 
 @dataclass
 class BruteForceExperimentAnalysis:
-    results: CircuitPerformanceDistributionResults
+    results: CircuitPerformanceDistributionResultsOld
     config: dict
 
     @classmethod
     def from_dir(cls, experiment_dir: Path, experiment_name: AdvOptTaskName) -> "BruteForceExperimentAnalysis":
         return cls(
-            results=CircuitPerformanceDistributionResults.load(
+            results=CircuitPerformanceDistributionResultsOld.load(
                 experiment_dir / "artifacts", experiment_name=experiment_name, append_exp_name_to_dir=False
             ),
             config=yaml.safe_load((experiment_dir / ".hydra" / "config.yaml").read_text()),

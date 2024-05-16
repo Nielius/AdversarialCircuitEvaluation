@@ -86,9 +86,7 @@ from acdc.greaterthan.utils import get_all_greaterthan_things
 from acdc.induction.utils import (
     get_all_induction_things,
 )
-from acdc.ioi.utils import (
-    get_all_ioi_things,
-)
+from acdc.ioi.ioi_data_fetchers import get_all_ioi_things
 from acdc.logic_gates.utils import get_all_logic_gate_things
 
 # these introduce several important classes !!!

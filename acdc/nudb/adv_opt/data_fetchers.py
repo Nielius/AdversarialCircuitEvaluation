@@ -1,4 +1,5 @@
-from abc import ABC
+import random
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property, partial
@@ -8,14 +9,26 @@ import torch
 from jaxtyping import Float
 from transformer_lens import HookedTransformer
 
-from acdc.docstring.utils import AllDataThings, get_all_docstring_things, get_docstring_subgraph_true_edges
+from acdc.docstring.utils import (
+    AllDataThings,
+    get_all_docstring_things,
+    get_docstring_model,
+    get_docstring_subgraph_true_edges,
+)
 from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
-from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
+from acdc.ioi.ioi_data_fetchers import IOIExperimentDataGenerator, get_all_ioi_things
+from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES, IOIPromptTemplate
+from acdc.ioi.utils import get_gpt2_small, get_ioi_true_edges
 from acdc.nudb.adv_opt.loss_fn import kl_div_on_output_logits
 from acdc.nudb.adv_opt.masked_runner import MaskedRunner
-from acdc.nudb.adv_opt.utils import device
+from acdc.nudb.adv_opt.utils import device as default_device
 from acdc.TLACDCEdge import Edge
-from acdc.tracr_task.utils import get_all_tracr_things, get_tracr_proportion_edges, get_tracr_reverse_edges
+from acdc.tracr_task.utils import (
+    get_all_tracr_things,
+    get_tracr_model_input_and_tl_model,
+    get_tracr_proportion_edges,
+    get_tracr_reverse_edges,
+)
 from acdc.types import EdgeAsTuple
 from subnetwork_probing.masked_transformer import CircuitStartingPointType
 
@@ -60,13 +73,22 @@ class AdvOptExperimentData:
 
 
 class AdvOptDataProvider(ABC):
+    @abstractmethod
     def get_experiment_data(
         self,
         num_examples: int,
         metric_name: str,
         device: str,
     ) -> AdvOptExperimentData:
-        raise NotImplementedError
+        ...
+
+    @abstractmethod
+    def get_tl_model(self, device: str) -> HookedTransformer:
+        ...
+
+    @abstractmethod
+    def get_masked_runner(self, device: str) -> MaskedRunner:
+        ...
 
 
 def _determine_circuit_starting_point_type(circuit: list[Edge]) -> CircuitStartingPointType:
@@ -96,6 +118,12 @@ def _determine_circuit_starting_point_type(circuit: list[Edge]) -> CircuitStarti
 
 @dataclass
 class ACDCAdvOptDataProvider(AdvOptDataProvider):
+    """
+    TODO:
+    - the task_data_fetcher should use the tl_model_fetcher
+    """
+
+    tl_model_fetcher: Callable[[str], HookedTransformer]
     task_data_fetcher: Callable[..., AllDataThings]
     true_edges_fetcher: Callable[[HookedTransformer], dict]
     task_name: AdvOptTaskName
@@ -126,6 +154,12 @@ class ACDCAdvOptDataProvider(AdvOptDataProvider):
             ),
         )
 
+    def get_tl_model(self, device: str) -> HookedTransformer:
+        return self.tl_model_fetcher(device)
+
+    def get_masked_runner(self, device) -> MaskedRunner:
+        raise NotImplementedError()
+
 
 EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
     AdvOptTaskName.TRACR_REVERSE: ACDCAdvOptDataProvider(
@@ -133,6 +167,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         # There are only 6 data points.
         # Only 1 attention head.
         # KL divergence is not well-defined for its output.
+        tl_model_fetcher=lambda device: get_tracr_model_input_and_tl_model(task="reverse", device=device)[1],
         task_name=AdvOptTaskName.TRACR_REVERSE,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_tracr_things(
             task="reverse", metric_name=metric_name, num_examples=num_examples, device=device
@@ -142,6 +177,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
     AdvOptTaskName.TRACR_PROPORTION: ACDCAdvOptDataProvider(
         # tracr-proportion is a task that takes a permutation of [0, 1, 2] and returns the proportion of the
         # first element in the permutation.
+        tl_model_fetcher=lambda device: get_tracr_model_input_and_tl_model(task="proportion", device=device)[1],
         task_name=AdvOptTaskName.TRACR_PROPORTION,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_tracr_things(
             task="proportion", metric_name=metric_name, num_examples=num_examples, device=device
@@ -149,6 +185,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         true_edges_fetcher=lambda model: get_tracr_proportion_edges(),
     ),
     AdvOptTaskName.DOCSTRING: ACDCAdvOptDataProvider(
+        tl_model_fetcher=lambda device: get_docstring_model(device=device),
         task_name=AdvOptTaskName.DOCSTRING,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_docstring_things(
             num_examples=num_examples, metric_name=metric_name, seq_len=4, device=device
@@ -157,6 +194,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         metric_last_sequence_position_only=True,
     ),
     AdvOptTaskName.GREATERTHAN: ACDCAdvOptDataProvider(
+        tl_model_fetcher=lambda device: get_gpt2_small(device=device),
         task_name=AdvOptTaskName.GREATERTHAN,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_greaterthan_things(
             num_examples=num_examples, metric_name=metric_name, device=device
@@ -165,6 +203,7 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
         metric_last_sequence_position_only=True,
     ),
     AdvOptTaskName.IOI: ACDCAdvOptDataProvider(
+        tl_model_fetcher=lambda device: get_gpt2_small(device=device),
         task_name=AdvOptTaskName.IOI,
         task_data_fetcher=lambda num_examples, metric_name, device: get_all_ioi_things(
             num_examples=num_examples, metric_name=metric_name, device=device
@@ -175,6 +214,35 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
     # No canonical circuit for induction?
     # AdvOptExperimentName.INDUCTION
 }
+
+
+def get_adv_opt_data_provider_for_ioi(
+    rng: random.Random, template_index: int, names_order: list[str]
+) -> AdvOptDataProvider:
+    def task_data_fetcher(num_examples: int, metric_name: str, device: str) -> AllDataThings:
+        generator = IOIExperimentDataGenerator(
+            num_examples=num_examples,
+            metric_name=metric_name,
+            device=device,
+        )
+        return generator.get_all_data_things(
+            rng=rng,
+            template=IOIPromptTemplate(
+                pre_template=IOI_PROMPT_PRETEMPLATES[template_index],
+                names_order=names_order,
+                io_position=4,
+                subject_position=3,
+            ),
+        )
+
+    return ACDCAdvOptDataProvider(
+        tl_model_fetcher=lambda device: get_gpt2_small(device=device),
+        task_name=AdvOptTaskName.IOI,
+        task_data_fetcher=task_data_fetcher,
+        true_edges_fetcher=get_ioi_true_edges,
+        metric_last_sequence_position_only=True,
+    )
+
 
 # Things you need to be careful about when translating an ACDC circuit to a set of edges you need to ablate.
 #
@@ -202,10 +270,15 @@ EXPERIMENT_DATA_PROVIDERS: dict[AdvOptTaskName, AdvOptDataProvider] = {
 #    I'm not 100% sure that the ACDC correspondence does not include such dangling edges/nodes, but I think so.
 
 
-def get_standard_experiment_data(task_name: AdvOptTaskName) -> AdvOptExperimentData:
-    experiment_data = EXPERIMENT_DATA_PROVIDERS[task_name].get_experiment_data(
-        num_examples=1000 if task_name != AdvOptTaskName.TRACR_REVERSE else 30,
+def get_standard_experiment_data(
+    task_name: AdvOptTaskName, data_provider: AdvOptDataProvider | None = None, num_examples: int | None = None
+) -> AdvOptExperimentData:
+    data_provider_ = data_provider or EXPERIMENT_DATA_PROVIDERS[task_name]
+    num_examples_ = num_examples or (1000 if task_name != AdvOptTaskName.TRACR_REVERSE else 30)
+
+    experiment_data = data_provider_.get_experiment_data(
+        num_examples=num_examples_,
         metric_name="kl_div" if task_name != AdvOptTaskName.TRACR_REVERSE else "l2",
-        device=device,
+        device=default_device,
     )
     return experiment_data

@@ -15,7 +15,6 @@ profile*.json
 __pycache__
 Testing_Notebook.ipynb
 
-scratch.py
 transformer_lens/scratch.py
 
 .vscode/

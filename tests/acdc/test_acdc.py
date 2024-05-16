@@ -12,7 +12,7 @@ from acdc.greaterthan.utils import get_all_greaterthan_things
 from acdc.induction.utils import (
     get_all_induction_things,
 )
-from acdc.ioi.utils import get_all_ioi_things
+from acdc.ioi.ioi_data_fetchers import get_all_ioi_things
 
 # these introduce several important classes !!!
 from acdc.TLACDCEdge import (

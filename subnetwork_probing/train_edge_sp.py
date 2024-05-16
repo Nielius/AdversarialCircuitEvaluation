@@ -22,7 +22,8 @@ from acdc.greaterthan.utils import (
     get_greaterthan_true_edges,
 )
 from acdc.induction.utils import get_all_induction_things  # , get_induction_true_edges
-from acdc.ioi.utils import get_all_ioi_things, get_ioi_true_edges
+from acdc.ioi.ioi_data_fetchers import get_all_ioi_things
+from acdc.ioi.utils import get_ioi_true_edges
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
 from acdc.TLACDCEdge import EdgeType
 from acdc.tracr_task.utils import (

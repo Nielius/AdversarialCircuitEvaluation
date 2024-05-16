@@ -4,8 +4,9 @@ from jaxtyping import Float
 
 from acdc.docstring.utils import AllDataThings, get_all_docstring_things
 from acdc.greaterthan.utils import get_all_greaterthan_things
-from acdc.ioi.utils import get_all_ioi_things
+from acdc.ioi.ioi_data_fetchers import get_all_ioi_things
 from acdc.nudb.adv_opt.data_fetchers import EXPERIMENT_DATA_PROVIDERS, AdvOptExperimentData, AdvOptTaskName
+from acdc.nudb.adv_opt.utils import tensor_fingerprint
 from acdc.tracr_task.utils import get_all_tracr_things
 from subnetwork_probing.masked_transformer import (
     CircuitStartingPointType,
@@ -297,16 +298,21 @@ class TestMaskedRunner:
     def test_run_convex_combination_backward_pass_computation_agrees(
         self, experiment_data_fixture: AdvOptExperimentData
     ):
-        """Calculate gradients in several different ways and check that they agree. This is especially useful
-        for checking that the backward pass using the ablation cache is correct."""
+        """Calculate gradients of the convex combination coefficients in several different ways and check that they agree.
+        This is especially useful for checking that the backward pass using the ablation cache is correct."""
+
+        # We consider the following four cases:
+        #
+        # convex combination of: (1) input only; or (2) input and patch
+        # ablate:                (a) nothing; or    (b) everything
 
         masked_runner = experiment_data_fixture.masked_runner
         all_task_things_fixture = experiment_data_fixture.task_data
 
         rng_state = torch.random.get_rng_state()
+        print("Fingerprint: ", tensor_fingerprint(rng_state))
         coefficients_test = torch.rand((all_task_things_fixture.validation_patch_data.shape[0],), dtype=torch.float32)
         coefficients_other = torch.rand((all_task_things_fixture.validation_patch_data.shape[0],), dtype=torch.float32)
-        torch.random.set_rng_state(rng_state)
 
         input_embedded = masked_runner.masked_transformer.model.embed(all_task_things_fixture.validation_data)
         patch_input_embedded = masked_runner.masked_transformer.model.embed(
@@ -314,6 +320,7 @@ class TestMaskedRunner:
         )
         dummy_input = all_task_things_fixture.validation_data[0, ...]
 
+        # Only do a convex combination of the input; ablate nothing
         coefficients_test_singlepatch = coefficients_test.clone().requires_grad_()
         output_singlepatch = masked_runner.run_with_linear_combination(
             input_embedded=input_embedded,
@@ -324,6 +331,7 @@ class TestMaskedRunner:
         )
         output_singlepatch.norm().backward()
 
+        # Only do a convex combination of the input; ablate everything
         coefficients_test_singlepatch_allablated = coefficients_test.clone().requires_grad_()
         output_singlepatch_allablated = masked_runner.run_with_linear_combination(
             input_embedded=input_embedded,
@@ -334,6 +342,7 @@ class TestMaskedRunner:
         )
         output_singlepatch_allablated.norm().backward()
 
+        # Do convex combination of both input and patch; ablate nothing
         coefficients_test_convexpatch = coefficients_test.clone().requires_grad_()
         output_convexpatch = masked_runner.run_with_linear_combination_of_input_and_patch(
             input_embedded=input_embedded,
@@ -348,6 +357,7 @@ class TestMaskedRunner:
 
         # This is the crucial part: by switching around the patch and the input, and ablating all edges, we can check
         # that calculating the patch gradient with the ablation cache is correct.
+        # Do convex combination of both input and patch; ablate everything
         coefficients_test_convexpatch_onpatch = coefficients_test.clone().requires_grad_()
         output_convexpatch_onpatch = masked_runner.run_with_linear_combination_of_input_and_patch(
             input_embedded=patch_input_embedded,  # deliberately switched around
@@ -369,6 +379,8 @@ class TestMaskedRunner:
         assert torch.allclose(coefficients_test_singlepatch_allablated.grad, torch.tensor(0.0, dtype=torch.float32))
         assert torch.allclose(coefficients_test_singlepatch.grad, coefficients_test_convexpatch.grad)
         assert torch.allclose(coefficients_test_singlepatch.grad, coefficients_test_convexpatch_onpatch.grad, atol=1e-4)
+
+        torch.random.set_rng_state(rng_state)
 
 
 @pytest.mark.parametrize(
