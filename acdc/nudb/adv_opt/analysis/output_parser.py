@@ -1,9 +1,14 @@
+import re
 from functools import cached_property
 from pathlib import Path
+from typing import ClassVar
 
+import jsonpickle
 import torch
 import yaml
 
+from acdc.nudb.adv_opt.brute_force.circuit_edge_fetcher import CircuitType
+from acdc.nudb.adv_opt.brute_force.results import BruteForceResults
 from acdc.nudb.adv_opt.data_fetchers import AdvOptExperimentData, AdvOptTaskName, get_standard_experiment_data
 from acdc.nudb.adv_opt.settings import ExperimentArtifacts
 
@@ -37,6 +42,10 @@ class HydraOutputDir:
 
 
 class AdvOptHydraOutputDir(HydraOutputDir):
+    """This class represents an output directory for the optimization (not the brute force)
+    process, i.e., where I try to find the worst case input using an optimization process.
+    These output directories are created by the file 'acdc/nudb/adv_opt/main.py'."""
+
     @cached_property
     def artifacts(self) -> ExperimentArtifacts:
         return ExperimentArtifacts.load(self.path / "artifacts")
@@ -74,3 +83,24 @@ class AdvOptHydraOutputDir(HydraOutputDir):
         loss = experiment_data.loss_fn(outputs_from_circuit, outputs_from_full_model)
 
         return loss
+
+
+class AdvOptBruteForceOutputDir(HydraOutputDir):
+    """This class represents an output directory for the brute force process, i.e., where I evaluate the performance of
+    a circuit on a dataset. These output directories are created by the file 'acdc/nudb/adv_opt/brute_force/main.py'."""
+
+    _results_re: ClassVar = re.compile(r"results_circuittype\.(.*)\.json")
+
+    @property
+    def result_paths(self) -> dict[CircuitType, Path]:
+        return {self._circuit_type_from_path(path): path for path in self.path.glob("results_*.json")}
+
+    def result(self, circuit_type: CircuitType) -> BruteForceResults:
+        try:
+            return jsonpickle.decode(self.result_paths[circuit_type].read_text())
+        except KeyError:
+            raise ValueError(f"No results found for circuit type {circuit_type} in {self.path}")
+
+    @staticmethod
+    def _circuit_type_from_path(path: Path) -> CircuitType:
+        return CircuitType(AdvOptBruteForceOutputDir._results_re.match(path.name).group(1))

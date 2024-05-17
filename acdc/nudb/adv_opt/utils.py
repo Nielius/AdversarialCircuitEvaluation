@@ -13,7 +13,6 @@ device = "cuda" if torch.cuda.is_available() and os.environ.get("ADVOPT_FORCE_CP
 # device = "cpu"
 
 CIRCUITBENCHMARKS_DATA_DIR = Path(os.environ.get("CIRCUITBENCHMARKS_DATA_DIR", "/tmp/circuitbenchmarks_data"))
-CIRCUITBENCHMARKS_DATA_DIR.mkdir(exist_ok=True)
 
 
 def tensor_fingerprint(tensor: torch.Tensor) -> str:

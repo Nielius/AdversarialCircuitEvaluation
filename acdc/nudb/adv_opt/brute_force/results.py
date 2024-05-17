@@ -18,7 +18,7 @@ class BruteForceResults:
     task_name: AdvOptTaskName
     input: Float[np.ndarray, "batch pos vocab"]
     patch_input: Float[np.ndarray, "batch pos vocab"]
-    circuit_loss: dict[str, Float[torch.Tensor, " batch"]]
+    circuit_loss: Float[np.ndarray, " batch"]
     circuit_spec: CircuitSpec
 
 
