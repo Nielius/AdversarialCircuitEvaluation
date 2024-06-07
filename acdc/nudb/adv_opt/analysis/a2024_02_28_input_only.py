@@ -1,3 +1,10 @@
+"""
+Analyse data for the convex combination experiments, where I try to find the worst input for a circuit by relaxing
+the problem by allowing convex combinations of inputs, and then doing gradient descent on the coefficients of the
+convex combination.
+
+In this file, I analyze the experiments where we only have convex combinations of the inputs, not of the patch inputs.
+"""
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,7 +54,7 @@ experiment_paths: dict[AdvOptTaskName, list[str]] = {
 
 @dataclass
 class ExperimentAnalysis:
-    """WIP, might be nicer"""
+    """Analyse the artifacts from ExperimentArtifacts. See its documentation."""
 
     artifacts: ExperimentArtifacts
     config: dict

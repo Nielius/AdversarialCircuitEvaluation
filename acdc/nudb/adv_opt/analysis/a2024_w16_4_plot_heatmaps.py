@@ -1,4 +1,5 @@
 # pyright: noqa
+"""Plot heatmaps of the coefficients obtained from the convex optimization experiments."""
 from pathlib import Path
 
 import jaxtyping

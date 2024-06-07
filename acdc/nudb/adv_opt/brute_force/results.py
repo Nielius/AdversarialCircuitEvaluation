@@ -30,7 +30,7 @@ class IOIBruteForceResults(BruteForceResults):
 
 
 @dataclass
-class CircuitPerformanceDistributionResultsOld:
+class CircuitPerformanceDistributionResultsV1:
     """NOW DEPRECATED in favour of BruteForceResults."""
 
     experiment_name: AdvOptTaskName
@@ -50,7 +50,7 @@ class CircuitPerformanceDistributionResultsOld:
     @classmethod
     def load(
         cls, artifact_dir: Path, experiment_name: AdvOptTaskName, append_exp_name_to_dir: bool = True
-    ) -> "CircuitPerformanceDistributionResultsOld":
+    ) -> "CircuitPerformanceDistributionResultsV1":
         storage_dir = artifact_dir / experiment_name if append_exp_name_to_dir else artifact_dir
 
         return cls(
@@ -58,6 +58,11 @@ class CircuitPerformanceDistributionResultsOld:
             metrics={
                 # load all metrics with torch.load by walking through the file names
                 key: torch.load(storage_dir / f"metrics_{key}.pt", map_location=device)
+                * (
+                    50_257
+                    if experiment_name in [AdvOptTaskName.IOI, AdvOptTaskName.DOCSTRING, AdvOptTaskName.GREATERTHAN]
+                    else 1
+                )
                 for filename in storage_dir.glob("metrics_*.pt")
                 if (key := filename.stem.removeprefix("metrics_"))
             },  # torch.load(storage_dir / "metrics.pt"),

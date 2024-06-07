@@ -1,3 +1,9 @@
+"""Script to analyze the brute force results for the IOI task with the new IOI dataset v2.
+
+The output data that is being analyzed is encoded differently than the data from earlier brute force experiments
+(before April 2024).
+"""
+
 import logging
 import random
 from dataclasses import dataclass
@@ -11,7 +17,7 @@ from transformers import AutoTokenizer
 from typing_extensions import Self
 
 from acdc.ioi.ioi_dataset_v2 import get_ioi_tokenizer
-from acdc.nudb.adv_opt.analysis.analyzer_brute_force_old import analyze_circuit_loss_metrics
+from acdc.nudb.adv_opt.analysis.analyzer_brute_force_v1 import analyze_and_print_circuit_loss_metrics
 from acdc.nudb.adv_opt.analysis.output_parser import AdvOptBruteForceOutputDir
 from acdc.nudb.adv_opt.brute_force.circuit_edge_fetcher import CircuitType
 from acdc.nudb.adv_opt.brute_force.results import (
@@ -31,7 +37,7 @@ def analyze_worst_inputs_with_outputs(
     patch_input_tokens = torch.tensor(result.patch_input)
     circuit_loss = torch.tensor(result.circuit_loss)
 
-    analyze_circuit_loss_metrics(
+    analyze_and_print_circuit_loss_metrics(
         tokenizer,
         input_tokens,
         patch_input_tokens,

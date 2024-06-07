@@ -62,6 +62,9 @@ class ExperimentSettings:
 
 @dataclass
 class ExperimentArtifacts:
+    """The artifacts for the optimization experiments where we relax the optimization problem by allowing convex
+    combinations of input tokens."""
+
     base_input: Integer[torch.Tensor, "batch pos"] | None = None
     base_patch_input: Integer[torch.Tensor, "batch pos"] | None = None
     coefficients_init: Float[torch.Tensor, " batch"] | None = None
