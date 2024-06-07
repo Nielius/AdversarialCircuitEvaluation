@@ -18,7 +18,7 @@ from acdc.docstring.utils import (
     get_all_docstring_things,
     get_docstring_subgraph_true_edges,
 )
-from acdc.greaterthan.utils import get_all_greaterthan_things
+from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
 from acdc.induction.utils import get_all_induction_things
 from acdc.ioi.ioi_data_fetchers import get_all_ioi_things
 from acdc.TLACDCCorrespondence import TLACDCCorrespondence
@@ -463,6 +463,7 @@ if __name__ == "__main__":
             metric_name=args.loss_type,
             device=args.device,
         )
+        get_true_edges = get_true_edges = lambda: get_greaterthan_true_edges(all_task_things.tl_model)
     else:
         raise ValueError(f"Unknown task {args.task}")
 
@@ -482,7 +483,7 @@ if __name__ == "__main__":
 
     # Update dict with some different things
     to_log_dict["nodes_to_mask"] = list(map(str, to_log_dict["nodes_to_mask"]))
-    to_log_dict["number_of_edges"] = corr.count_no_edges()
+    to_log_dict["number_of_edges"] = corr.count_num_edges()
     to_log_dict["percentage_binary"] = percentage_binary
 
     wandb.log(to_log_dict)

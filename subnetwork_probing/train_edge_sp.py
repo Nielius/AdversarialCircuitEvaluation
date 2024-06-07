@@ -40,7 +40,7 @@ from subnetwork_probing.sp_utils import (
 
 def save_edges(corr: TLACDCCorrespondence, fname: str):
     edges_list = []
-    for t, e in corr.all_edges().items():
+    for t, e in corr.edge_dict().items():
         if e.present and e.edge_type != EdgeType.PLACEHOLDER:
             edges_list.append((t, e.effect_size))
 
@@ -52,7 +52,7 @@ def train_edge_sp(
     args,
     masked_model: EdgeLevelMaskedTransformer,
     all_task_things: AllDataThings,
-    print_every: int = 100,
+    print_every: int = 1,
     get_true_edges: Callable = None,
 ):
     print(f"Using memory {torch.cuda.memory_allocated():_} bytes at training start")

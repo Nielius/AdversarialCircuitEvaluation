@@ -10,7 +10,7 @@ def set_ground_truth_edges(canonical_circuit_subgraph: TLACDCCorrespondence, gro
         receiver_index,
         sender_name,
         sender_index,
-    ), edge in canonical_circuit_subgraph.all_edges().items():
+    ), edge in canonical_circuit_subgraph.edge_dict().items():
         key = (
             receiver_name,
             receiver_index.hashable_tuple,
@@ -25,7 +25,7 @@ def print_stats(recovered_corr, ground_truth_subgraph, do_print=True):
     False positive = present in recovered_corr but not in ground_truth_set
     False negative = present in ground_truth_set but not in recovered_corr
     """
-    # diff = set(recovered_corr.all_edges().keys()) - set(ground_truth_subgraph.all_edges().keys())
+    # diff = set(recovered_corr.edge_dict().keys()) - set(ground_truth_subgraph.edge_dict().keys())
     # if diff: print(f"{len(diff)} key mismatches: {diff}")
     stats = get_node_stats(ground_truth=ground_truth_subgraph, recovered=recovered_corr)
     node_tpr = stats["true positive"] / (stats["true positive"] + stats["false negative"])
