@@ -45,6 +45,7 @@ class AllDataThings:
 def get_docstring_model(device="cuda"):
     tl_model = HookedTransformer.from_pretrained(
         "attn-only-4l",  # see https://neelnanda-io.github.io/TransformerLens/generated/model_properties_table.html
+        device=device,
     )
     tl_model.set_use_attn_result(True)
     tl_model.set_use_split_qkv_input(True)

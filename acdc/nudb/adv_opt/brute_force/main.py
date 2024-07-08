@@ -11,7 +11,7 @@ import torch
 import torch.utils.data
 from hydra.core import hydra_config
 from hydra.core.config_store import ConfigStore
-from jaxtyping import Float
+from jaxtyping import Float, Num
 from tqdm import tqdm
 
 from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES, IOI_PROMPT_PRETEMPLATES_OOD
@@ -103,7 +103,7 @@ class CircuitPerformanceDistributionExperiment:
         """
 
         def process_batch(
-            batch: tuple[Float[torch.Tensor, "batch pos vocab"], Float[torch.Tensor, "batch pos vocab"]],
+            batch: tuple[Num[torch.Tensor, "batch pos"], Num[torch.Tensor, "batch pos"]],
         ) -> Float[torch.Tensor, " batch"]:
             input, patch_input = batch
 
@@ -160,7 +160,7 @@ def main(
             num_examples=settings_object.num_examples,
         )
     else:
-        experiment_data = get_standard_experiment_data(experiment_name)
+        experiment_data = get_standard_experiment_data(experiment_name, num_examples=settings_object.num_examples)
 
     test_data, test_patch_data = (
         (experiment_data.task_data.test_data, experiment_data.task_data.test_patch_data)
