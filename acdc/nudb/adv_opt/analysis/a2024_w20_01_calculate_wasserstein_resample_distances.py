@@ -12,9 +12,6 @@ from scipy.stats import wasserstein_distance
 
 from acdc.nudb.adv_opt.analysis.a2024_w18_analyze_different_prompts import IOIBruteForceResultsCollection
 
-base_dir = Path("/home/niels/data/advopt/raw/tidy/2024-05-02-bruteforce-ioi-1000samples")
-results = IOIBruteForceResultsCollection.from_dir(base_dir)
-
 
 def calculate_resample_wasserstein_distances(
     circuit_loss: np.ndarray,
@@ -37,6 +34,9 @@ class ResampleDistance:
 
 
 if __name__ == "__main__":
+    base_dir = Path("/home/niels/data/advopt/raw/tidy/2024-05-02-bruteforce-ioi-1000samples")
+    results = IOIBruteForceResultsCollection.from_dir(base_dir)
+
     n_resamples = 100
     # sample_sizes = [10, 100]
     sample_sizes = [10, 100, 1000, 10000, 100000]

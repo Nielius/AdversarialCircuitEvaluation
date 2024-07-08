@@ -14,7 +14,7 @@ from hydra.core.config_store import ConfigStore
 from jaxtyping import Float
 from tqdm import tqdm
 
-from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES
+from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES, IOI_PROMPT_PRETEMPLATES_OOD
 from acdc.nudb.adv_opt.brute_force.circuit_edge_fetcher import CircuitType, get_circuit_edges
 from acdc.nudb.adv_opt.brute_force.results import (
     BruteForceResults,
@@ -36,7 +36,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BruteForceExperimentSettings:
-    """Settings for the brute force experiment."""
+    """Settings for the brute force experiment.
+
+    Parameters:
+    ----------
+    sample_examples : int | None
+        If set, sample this number of examples from the total of `num_examples` examples. This shuffles the order.
+    """
 
     task: TaskSpecificSettings
     seed: int = 4321
@@ -46,6 +52,7 @@ class BruteForceExperimentSettings:
         default_factory=lambda: [CircuitType.RANDOM, CircuitType.CANONICAL, CircuitType.CORRUPTED_CANONICAL]
     )
     num_examples: int | None = None
+    sample_examples: int | None = None
 
 
 cs = ConfigStore.instance()
@@ -139,6 +146,7 @@ def main(
     logger.info("Storing output in %s; going to run circuits %s", output_base_dir, settings.circuits)
 
     rng = random.Random(settings.seed)
+    torch_generator = torch.manual_seed(settings.seed)
 
     if experiment_name == AdvOptTaskName.IOI:
         assert isinstance(settings_object.task, IOITaskSpecificSettings)
@@ -153,23 +161,31 @@ def main(
         )
     else:
         experiment_data = get_standard_experiment_data(experiment_name)
-    experiment = CircuitPerformanceDistributionExperiment.from_experiment_data(experiment_data)
 
     test_data, test_patch_data = (
         (experiment_data.task_data.test_data, experiment_data.task_data.test_patch_data)
         if not settings.optimize_over_patch_data
         else create_cartesian_product(experiment_data.task_data.test_data, experiment_data.task_data.test_patch_data)
     )
+    dataset = torch.utils.data.TensorDataset(test_data, test_patch_data)
     data_loader = typing.cast(
         torch.utils.data.DataLoader[
             tuple[Float[torch.Tensor, "batch pos vocab"], Float[torch.Tensor, "batch pos vocab"]]
         ],
         torch.utils.data.DataLoader(
-            dataset=torch.utils.data.TensorDataset(test_data, test_patch_data),
+            dataset=dataset,
             batch_size=settings.batch_size,
+            sampler=(
+                None
+                if settings_object.sample_examples is None
+                else torch.utils.data.RandomSampler(
+                    dataset, num_samples=settings_object.sample_examples, replacement=False, generator=torch_generator
+                )
+            ),
         ),
     )
 
+    experiment = CircuitPerformanceDistributionExperiment.from_experiment_data(experiment_data)
     for circuit in settings.circuits:
         logger.info(f"Running with circuit {circuit}")
         circuit_spec = get_circuit_edges(
@@ -194,7 +210,9 @@ def main(
                 circuit_spec=circuit_spec,
                 circuit_loss=metrics_for_circuit.detach().cpu().numpy(),
                 prompt_template_index=settings_object.task.prompt_template_index,
-                prompt_template=IOI_PROMPT_PRETEMPLATES[settings_object.task.prompt_template_index].template,
+                prompt_template=(IOI_PROMPT_PRETEMPLATES + IOI_PROMPT_PRETEMPLATES_OOD)[
+                    settings_object.task.prompt_template_index
+                ].template,
             )
         else:
             results = BruteForceResults(

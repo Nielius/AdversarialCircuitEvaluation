@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import typer
 from scipy.stats import wasserstein_distance
 
 from acdc.nudb.adv_opt.analysis.a2024_w18_analyze_different_prompts import IOIBruteForceResultsCollection
@@ -24,11 +25,7 @@ def calculate_pairwise_wasserstein_distances(results: IOIBruteForceResultsCollec
     return result
 
 
-if __name__ == "__main__":
-    base_dir = Path("/home/niels/data/advopt/raw/tidy/2024-05-02-bruteforce-ioi-1000samples")
-    result_dir = Path("/home/niels/data/advopt/processed/2024-05-14-wasserstein-distances-pairwise")
-    results: IOIBruteForceResultsCollection = IOIBruteForceResultsCollection.from_dir(base_dir)
-
+def main(results: IOIBruteForceResultsCollection, result_dir: Path):
     pairwise_distances = calculate_pairwise_wasserstein_distances(results)
 
     metadata_df = pd.DataFrame(
@@ -49,3 +46,14 @@ if __name__ == "__main__":
 
     pairwise_distances_df.to_csv(result_dir / "pairwise_distances.csv")
     metadata_df.to_csv(result_dir / "metadata.csv")
+
+
+def main_from_paths(result_dir: Path, input_dirs: list[Path]):
+    results: IOIBruteForceResultsCollection = IOIBruteForceResultsCollection.merge(
+        *(IOIBruteForceResultsCollection.from_dir(input_dir) for input_dir in input_dirs)
+    )
+    main(results, result_dir)
+
+
+if __name__ == "__main__":
+    typer.run(main_from_paths)

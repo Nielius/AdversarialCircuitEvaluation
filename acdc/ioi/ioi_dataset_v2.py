@@ -110,6 +110,23 @@ IOI_PROMPT_PRETEMPLATES: list[Template] = [
     Template("Friends ${name1} and ${name2} found a ${object} at the ${place}. ${name3} gave it to ${name4}"),
 ]
 
+# Additional of my own
+IOI_PROMPT_PRETEMPLATES_OOD: list[Template] = [
+    Template("That evening, when ${name1} and ${name2} where at the ${place}, ${name3} handed a ${object} to ${name4}"),
+    Template(
+        "At the ${place}, where ${name1} and ${name2} had decided to meet, ${name3} handed a ${object} to ${name4}"
+    ),
+    Template(
+        "There was a ${object} at the ${place}, where ${name1} and ${name2} had decided to meet. ${name3} found it and gave it to ${name4}"
+    ),
+    Template(
+        "Then, ${name1} and ${name2} met at the ${place} and argued over the ${object}. ${name3} gave it to ${name4}"
+    ),
+    Template(
+        "Then, ${name1} and ${name2} met at the ${place} and argued over the ${object}. It was getting late. ${name3} gave it to ${name4}"
+    ),
+]
+
 
 def _select_random_values(
     rng: random.Random, names_order: list[str], names: list[str], template_values: dict[str, list[str]]

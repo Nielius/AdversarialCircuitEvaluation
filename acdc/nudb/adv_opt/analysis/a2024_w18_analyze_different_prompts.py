@@ -71,6 +71,14 @@ class IOIBruteForceResultsCollection:
         ]
         return cls(dirs_and_results=all_results)
 
+    @classmethod
+    def merge(cls, *collections: Self) -> Self:
+        return cls(
+            dirs_and_results=[
+                (dir, result) for collection in collections for dir, result in collection.dirs_and_results
+            ]
+        )
+
     def print_results(self):
         # Print all results
         for experiment_dir, result in self.dirs_and_results:

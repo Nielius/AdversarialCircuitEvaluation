@@ -17,7 +17,7 @@ from acdc.docstring.utils import (
 )
 from acdc.greaterthan.utils import get_all_greaterthan_things, get_greaterthan_true_edges
 from acdc.ioi.ioi_data_fetchers import IOIExperimentDataGenerator, get_all_ioi_things
-from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES, IOIPromptTemplate
+from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES, IOI_PROMPT_PRETEMPLATES_OOD, IOIPromptTemplate
 from acdc.ioi.utils import get_gpt2_small, get_ioi_true_edges
 from acdc.nudb.adv_opt.loss_fn import kl_div_on_output_logits
 from acdc.nudb.adv_opt.masked_runner import MaskedRunner
@@ -228,7 +228,7 @@ def get_adv_opt_data_provider_for_ioi(
         return generator.get_all_data_things(
             rng=rng,
             template=IOIPromptTemplate(
-                pre_template=IOI_PROMPT_PRETEMPLATES[template_index],
+                pre_template=(IOI_PROMPT_PRETEMPLATES + IOI_PROMPT_PRETEMPLATES_OOD)[template_index],
                 names_order=names_order,
                 io_position=4,
                 subject_position=3,
