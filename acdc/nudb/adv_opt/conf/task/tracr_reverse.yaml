@@ -1,0 +1,6 @@
+defaults:
+  # I think this default only links this to the schema that is stored in the SchemaStore
+  - tracr_reverse_schema
+
+task_name: "TRACR_REVERSE"
+metric_name: "l2"

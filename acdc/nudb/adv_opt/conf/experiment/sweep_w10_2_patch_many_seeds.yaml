@@ -1,0 +1,16 @@
+# @package _global_
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task: greaterthan
+      random_seed: 4321,4322,4323,4324,4325,4326,4327,4328,4329,4330
+  sweep:
+    subdir: ${random_seed}
+
+
+adam_lr: 0.5
+num_epochs: 400
+use_wandb: True
+wandb_run_name: ${oc.decode:${task.task_name}}_seed_${random_seed}
+wandb_group_name: ${oc.decode:${task.task_name}}_many_seeds

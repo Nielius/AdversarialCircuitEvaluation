@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {NAME}
+  labels:
+    kueue.x-k8s.io/queue-name: farai
+    wandb-group: {WANDB_GROUP}
+    wandb-project: {WANDB_PROJECT}
+    wandb-job-name: {WANDB_JOB_NAME}
+    wandb-entity: {WANDB_ENTITY}
+    launch-id: {LAUNCH_ID}
+spec:
+  suspend: true
+  template:
+    metadata:
+      generateName: {NAME}
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+      priorityClassName: low-batch
+  
+      containers:
+      - name: devbox-container
+        image: "{CONTAINER}"
+        command:
+          - bash
+          - -c
+          - |
+            mkdir /tmp/training; git pull; git checkout {COMMIT_HASH}; git submodule update --recursive; {COMMAND}
+        resources:
+          requests:
+            cpu: {CPU}
+            memory: {MEMORY}
+          limits:
+            nvidia.com/gpu: {GPU}
+        env:
+        - name: OMP_NUM_THREADS
+          value: {OMP_NUM_THREADS}
+        - name: WANDB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wandb
+              key: api_key
+        - name: WANDB_ENTITY
+          value: {WANDB_ENTITY}
+        - name: WANDB_JOB_NAME
+          value: {WANDB_JOB_NAME}
+        - name: WANDB_PROJECT
+          value: {WANDB_PROJECT}
+        - name: WANDB_GROUP
+          value: {WANDB_GROUP}
+        - name: WANDB_DIR
+          value: "/tmp/training"
+        - name: WANDB_CACHE_DIR
+          value: "/tmp/cache"
+        - name: WANDB_CONFIG_DIR
+          value: "/tmp/config"
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: docker

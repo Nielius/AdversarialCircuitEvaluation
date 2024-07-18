@@ -1,0 +1,17 @@
+# @package _global_
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task: docstring,ioi
+      adam_lr: 1e-4,1e-3,1e-2,1e-1,1e-5,1
+      temperature_schedule: stable,linear,constant
+      random_seed: 4321,4322
+  sweep:
+    subdir: ${temperature_schedule}-adam${adam_lr}-rs${random_seed}
+
+num_epochs: 1000
+use_wandb: True
+wandb_run_name: ${oc.decode:${task.task_name}}_adam_${adam_lr}_T${temperature_schedule}_rs${random_seed}
+wandb_group_name: ${oc.decode:${task.task_name}}_large_sweep
+wandb_project_name: test-annealing-noise

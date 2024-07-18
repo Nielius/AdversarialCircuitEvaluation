@@ -1,0 +1,7 @@
+# @package _global_
+# Run with python acdc/nudb/adv_opt/main.py +experiment_bf=all
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      task: tracr_reverse,docstring,greaterthan,ioi

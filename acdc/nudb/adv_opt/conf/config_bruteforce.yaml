@@ -1,0 +1,10 @@
+defaults:
+  - config_schema
+  - task: tracr_reverse
+
+hydra:
+  run:
+    dir: ${oc.env:ACDC_OUTPUT_DIR, .}/outputs/${now:%Y-%m-%d}-${now:%H%M%S}_bruteforce_${oc.decode:${task.task_name}}
+  sweep:
+    dir: ${oc.env:ACDC_OUTPUT_DIR, .}/outputs/${now:%Y-%m-%d}-${now:%H%M%S}_bruteforce
+    subdir: ${oc.decode:${task.task_name}}

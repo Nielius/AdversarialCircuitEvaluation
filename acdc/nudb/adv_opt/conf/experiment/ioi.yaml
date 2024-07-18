@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /task: ioi
+
+
+num_epochs: 2000 
+random_seed: 4321
+use_wandb: True

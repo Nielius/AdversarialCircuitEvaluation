@@ -1,0 +1,111 @@
+[tool.poetry]
+name = "acdc"
+version = "0.0.0" # This should automatically be set by the CD pipeline on release
+description = "ACDC: Automatic Circuit DisCovery implementation on top of TransformerLens"
+authors = ["Arthur Conmy, Adrià Garriga-Alonso"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "acdc"}, {include = "subnetwork_probing"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+einops = "^0.7.0"
+numpy = [{ version = "^1.21", python = "<3.10" },
+         { version = "^1.26", python = ">=3.10" }]
+torch = ">=2.2.0"
+datasets = "^2.7.1"
+transformers = "^4.37"
+tokenizers = "^0.15.0"
+tqdm = "^4.66"
+pandas = "^1.1.5"
+wandb = "^0.13.5"
+torchtyping = "^0.1.4"
+huggingface-hub = "^0.20"
+cmapy = "^0.6.6"
+networkx = "^3.1"
+plotly = "^5.12.0"
+kaleido = "0.2.1"
+pygraphviz = "^1.11"
+tracr = { path = "./submodules/tracr/", develop = true }
+# For some reason, I could not get this to work:
+# tracr = {git = "https://github.com/google-deepmind/tracr.git", rev = "e75ecda"}
+transformer-lens = "1.14.0"
+typer = "^0.9.0"
+jaxtyping = "^0.2.25"
+joblib = "^1.3.2"
+hydra-core = "^1.3.2"
+icecream = "^2.1.3"
+scikit-learn = "^1.4.2"
+jsonpickle = "^3.0.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+pytest-cov = "^4.0.0"
+jupyterlab = "^3.5.0"
+jupyter = "^1.0.0"
+ruff = "^0.2.1"
+pyright = "^1.1.348"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # Ignore numpy.distutils deprecation warning caused by pandas
+    # More info: https://numpy.org/doc/stable/reference/distutils.html#module-numpy.distutils
+    "ignore:distutils Version classes are deprecated:DeprecationWarning"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+testpaths = "acdc subnetwork_probing experiments notebooks tests"
+# Use jaxtyping runtime checks when using pytest; see https://docs.kidger.site/jaxtyping/api/runtime-type-checking/#pytest-hook
+# nice feature, but it slows down some tests a lot, hence commented out
+# addopts = "--jaxtyping-packages=acdc,beartype.beartype"
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ['submodules/']
+
+[tool.ruff.lint]
+# Enable the isort rules.
+extend-select = ["I"]
+ignore = ["F722"]  # the jaxtyping annotations cause F722
+
+[tool.pyright]
+exclude = [
+    # other people's code
+    "subnetwork_probing/transformer_lens",
+    "submodules",
+    # code that is part of the ACDC repo, but has not been cleaned up yet
+    "notebooks",
+    "ims",
+    "experiments",
+    "acdc/tracr_task",
+    "tests/subnetwork_probing/run_edge_sp_tests.py",
+    # these ones below should also be checked in the future
+    "acdc/acdc_graphics.py",
+    "acdc/acdc_utils.py",
+    "acdc/docstring/prompts.py",
+    "acdc/docstring/utils.py",
+    "acdc/global_cache.py",
+    "acdc/greaterthan/utils.py",
+    "acdc/induction/utils.py",
+    "acdc/ioi/ioi_dataset.py",
+    "acdc/ioi/utils.py",
+    "acdc/logic_gates/utils.py",
+    "acdc/main.py",
+    # "acdc/TLACDCEdge.py",
+    # "acdc/TLACDCExperiment.py",
+    "subnetwork_probing/create_reset_networks.py",
+    "subnetwork_probing/launch_all_edge_sp.py",
+    "subnetwork_probing/sp_utils.py",
+    "subnetwork_probing/train_edge_sp.py",
+    "subnetwork_probing/train.py",
+    "tests/acdc/test_acdc.py",
+    "acdc/TLACDCExperiment.py",
+    "acdc/nudb/adv_opt/analysis/2024_02_28_scratch.py",
+    "acdc/nudb/adv_opt/analysis/2024_w16_4_plot_heatmaps.py",
+]
+

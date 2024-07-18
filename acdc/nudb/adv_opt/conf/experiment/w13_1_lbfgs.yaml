@@ -1,0 +1,13 @@
+# @package _global_
+defaults:
+  - override /task: docstring
+
+num_epochs: 200
+random_seed: 4321
+use_wandb: False
+
+optimization_method: LBFGS
+adam_lr: 1.0
+adam_lr_schedule: constant
+temperature_schedule: constant
+noise_schedule: absent
