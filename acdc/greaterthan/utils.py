@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from acdc.acdc_utils import TorchIndex, kl_divergence
 from acdc.docstring.utils import AllDataThings
 from acdc.ioi.utils import get_gpt2_small
+from acdc.nudb.adv_opt.utils import model_forward_in_batches
 from acdc.types import EdgeAsTuple
 
 NOUNS = [
@@ -267,33 +268,42 @@ def get_all_greaterthan_things(num_examples, metric_name, device: str | torch.de
     test_data = data[num_examples:]
     test_patch_data = patch_data[num_examples:]
 
-    with torch.no_grad():
-        base_logits = model(data)[:, -1, :]
-        base_logprobs = F.log_softmax(base_logits, dim=-1)
-        base_validation_logprobs = base_logprobs[:num_examples]
-        base_test_logprobs = base_logprobs[num_examples:]
+    if metric_name == "none":
 
-    if metric_name == "greaterthan":
-        validation_metric = partial(greaterthan_metric, tokens=validation_data.cpu())
-    elif metric_name == "kl_div":
-        validation_metric = partial(
-            kl_divergence,
-            base_model_logprobs=base_validation_logprobs,
-            mask_repeat_candidates=None,
-            last_seq_element_only=True,
-        )
+        def validation_metric():
+            raise NotImplementedError("No metric specified")
+
+        test_metrics = {}
     else:
-        raise ValueError(f"Unknown metric {metric_name}")
+        with torch.no_grad():
+            base_logits = model_forward_in_batches(
+                model, data, batch_size=1024, slice_obj=(slice(None), -1, slice(None))
+            )
+            base_logprobs = F.log_softmax(base_logits, dim=-1)
+            base_validation_logprobs = base_logprobs[:num_examples]
+            base_test_logprobs = base_logprobs[num_examples:]
 
-    test_metrics = {
-        "greaterthan": partial(greaterthan_metric, tokens=test_data.cpu()),
-        "kl_div": partial(
-            kl_divergence,
-            base_model_logprobs=base_test_logprobs,
-            mask_repeat_candidates=None,
-            last_seq_element_only=True,
-        ),
-    }
+        if metric_name == "greaterthan":
+            validation_metric = partial(greaterthan_metric, tokens=validation_data.cpu())
+        elif metric_name == "kl_div":
+            validation_metric = partial(
+                kl_divergence,
+                base_model_logprobs=base_validation_logprobs,
+                mask_repeat_candidates=None,
+                last_seq_element_only=True,
+            )
+        else:
+            raise ValueError(f"Unknown metric {metric_name}")
+
+        test_metrics = {
+            "greaterthan": partial(greaterthan_metric, tokens=test_data.cpu()),
+            "kl_div": partial(
+                kl_divergence,
+                base_model_logprobs=base_test_logprobs,
+                mask_repeat_candidates=None,
+                last_seq_element_only=True,
+            ),
+        }
 
     return AllDataThings(
         tl_model=model,

@@ -6,7 +6,8 @@ import numpy as np
 import torch
 from jaxtyping import Float
 
-from acdc.nudb.adv_opt.brute_force.circuit_edge_fetcher import CircuitSpec
+from acdc.ioi.ioi_dataset_v2 import IOI_PROMPT_PRETEMPLATES, IOI_PROMPT_PRETEMPLATES_OOD
+from acdc.nudb.adv_opt.brute_force.circuit_edge_fetcher import CircuitSpec, CircuitType
 from acdc.nudb.adv_opt.data_fetchers import AdvOptTaskName
 from acdc.nudb.adv_opt.edge_serdes import EdgeJSONDecoder, EdgeJSONEncoder
 from acdc.nudb.adv_opt.utils import device
@@ -76,3 +77,31 @@ class CircuitPerformanceDistributionResultsV1:
         print(f"Metrics: {self.metrics}")
         # print(f"Topk most adversarial values: {self.topk_most_adversarial_values}")
         # print(f"Topk most adversarial inputs: {self.topk_most_adversarial_input}")
+
+    def convert_to_brute_force_results(self) -> BruteForceResults:
+        if self.experiment_name == AdvOptTaskName.IOI:
+            # TECH DEBT: we need to find some way to recognize the correct template index from the input
+            # Currently, I'm just doing a sanity check plus assuming it's the second index
+            assert (
+                self.test_data.shape[1] == 15
+            ), "This does not seem to be template. Please fix the code here to make sure you can recognize the correct template index from the input."
+            assert self.test_data[0, 5] == 1816  # " went"
+            prompt_template_index = 2
+
+            return IOIBruteForceResults(
+                task_name=self.experiment_name,
+                input=self.test_data.numpy(),
+                patch_input=self.test_patch_data.numpy(),
+                circuit_loss=self.metrics["canonical"].numpy(),
+                circuit_spec=CircuitSpec(circuit_type=CircuitType.UNKNOWN, edges=self.random_circuit),
+                prompt_template_index=prompt_template_index,
+                prompt_template=(IOI_PROMPT_PRETEMPLATES + IOI_PROMPT_PRETEMPLATES_OOD)[prompt_template_index].template,
+            )
+
+        return BruteForceResults(
+            task_name=self.experiment_name,
+            input=self.test_data.numpy(),
+            patch_input=self.test_patch_data.numpy(),
+            circuit_loss=self.metrics["canonical"].numpy(),
+            circuit_spec=CircuitSpec(circuit_type=CircuitType.UNKNOWN, edges=self.random_circuit),
+        )

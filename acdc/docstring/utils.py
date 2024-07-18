@@ -19,6 +19,7 @@ from acdc.acdc_utils import (
     kl_divergence,
     negative_log_probs,
 )
+from acdc.nudb.adv_opt.utils import model_forward_in_batches
 
 # these introduce several important classes !!!
 from acdc.TLACDCEdge import (
@@ -75,129 +76,141 @@ def get_all_docstring_things(
         validation_wrong_labels,
     ) = get_docstring_data(tl_model, num_examples, dataset_version)
 
-    with torch.no_grad():
-        base_validation_logprobs = F.log_softmax(tl_model(validation_data)[:, -1], dim=-1)
-        base_test_logprobs = F.log_softmax(tl_model(test_data)[:, -1], dim=-1)
-        assert len(base_validation_logprobs.shape) == 2, base_validation_logprobs.shape
+    if metric_name == "none":
 
-    def raw_docstring_metric(
-        logits: torch.Tensor,
-        correct_labels: torch.Tensor,
-        wrong_labels: torch.Tensor,
-        log_correct_incorrect_wandb: bool = False,
-        return_one_element: bool = True,
-    ):
-        """With neg sign so we minimize this"""
+        def validation_metric():
+            raise NotImplementedError("No metric specified")
 
-        correct_logits = logits[torch.arange(len(logits)), -1, correct_labels]
-        incorrect_logits = logits[torch.arange(len(logits)).unsqueeze(-1), -1, wrong_labels]
-
-        if log_correct_incorrect_wandb:
-            wandb.log(
-                {
-                    "correct_logits": correct_logits.mean().item(),
-                    "incorrect_logits": incorrect_logits.max(dim=-1).values.mean().item(),
-                }
-            )
-
-        # note neg sign!!!
-        answer = -(correct_logits - incorrect_logits.max(dim=-1).values)
-        if return_one_element:
-            answer = answer.mean()
-        return answer
-
-    def ldgz_docstring_metric(
-        logits: torch.Tensor,
-        correct_labels: torch.Tensor,
-        wrong_labels: torch.Tensor,
-        return_one_element: bool = True,
-    ):
-        """Logit diff greater zero fraction (with neg sign)"""
-        pos_logits = logits[:, -1, :]
-        max_correct, _ = torch.gather(pos_logits, index=correct_labels[..., None], dim=1).max(dim=1)
-        max_wrong, _ = torch.gather(pos_logits, index=wrong_labels, dim=1).max(dim=1)
-
-        answer = -(max_correct - max_wrong > 0).float()
-        if return_one_element:
-            answer = answer.sum()
-            answer /= len(max_correct)
-
-        return answer
-
-    if metric_name == "kl_div":
-        validation_metric = partial(
-            kl_divergence,
-            base_model_logprobs=base_validation_logprobs,
-            last_seq_element_only=True,
-            base_model_probs_last_seq_element_only=False,
-            return_one_element=return_one_element,
-        )
-    elif metric_name == "docstring_metric":
-        validation_metric = partial(
-            raw_docstring_metric,
-            correct_labels=validation_labels,
-            wrong_labels=validation_wrong_labels,
-            log_correct_incorrect_wandb=correct_incorrect_wandb,
-            return_one_element=return_one_element,
-        )
-    elif metric_name == "docstring_stefan":
-        validation_metric = partial(
-            ldgz_docstring_metric,
-            correct_labels=validation_labels,
-            wrong_labels=validation_wrong_labels,
-            return_one_element=return_one_element,
-        )
-    elif metric_name == "nll":
-        validation_metric = partial(
-            negative_log_probs,
-            labels=validation_labels,
-            last_seq_element_only=True,
-            return_one_element=return_one_element,
-        )
-    elif metric_name == "match_nll":
-        validation_metric = MatchNLLMetric(
-            labels=validation_labels,
-            base_model_logprobs=base_validation_logprobs,
-            last_seq_element_only=True,
-            return_one_element=return_one_element,
-        )
+        test_metrics = {}
     else:
-        raise ValueError(f"metric_name {metric_name} not recognized")
+        with torch.no_grad():
+            base_validation_logprobs = F.log_softmax(
+                model_forward_in_batches(tl_model, validation_data, batch_size=2014, slice_obj=(slice(None), -1)),
+                dim=-1,
+            )
+            base_test_logprobs = F.log_softmax(
+                model_forward_in_batches(tl_model, test_data, batch_size=1024, slice_obj=(slice(None), -1)), dim=-1
+            )
+            assert len(base_validation_logprobs.shape) == 2, base_validation_logprobs.shape
 
-    test_metrics = {
-        "kl_div": partial(
-            kl_divergence,
-            base_model_logprobs=base_test_logprobs,
-            last_seq_element_only=True,
-            base_model_probs_last_seq_element_only=False,
-            return_one_element=return_one_element,
-        ),
-        "docstring_metric": partial(
-            raw_docstring_metric,
-            correct_labels=test_labels,
-            wrong_labels=test_wrong_labels,
-            log_correct_incorrect_wandb=correct_incorrect_wandb,
-            return_one_element=return_one_element,
-        ),
-        "docstring_stefan": partial(
-            ldgz_docstring_metric,
-            correct_labels=test_labels,
-            wrong_labels=test_wrong_labels,
-            return_one_element=return_one_element,
-        ),
-        "nll": partial(
-            negative_log_probs,
-            labels=test_labels,
-            last_seq_element_only=True,
-            return_one_element=return_one_element,
-        ),
-        "match_nll": MatchNLLMetric(
-            labels=test_labels,
-            base_model_logprobs=base_test_logprobs,
-            last_seq_element_only=True,
-            return_one_element=return_one_element,
-        ),
-    }
+        def raw_docstring_metric(
+            logits: torch.Tensor,
+            correct_labels: torch.Tensor,
+            wrong_labels: torch.Tensor,
+            log_correct_incorrect_wandb: bool = False,
+            return_one_element: bool = True,
+        ):
+            """With neg sign so we minimize this"""
+
+            correct_logits = logits[torch.arange(len(logits)), -1, correct_labels]
+            incorrect_logits = logits[torch.arange(len(logits)).unsqueeze(-1), -1, wrong_labels]
+
+            if log_correct_incorrect_wandb:
+                wandb.log(
+                    {
+                        "correct_logits": correct_logits.mean().item(),
+                        "incorrect_logits": incorrect_logits.max(dim=-1).values.mean().item(),
+                    }
+                )
+
+            # note neg sign!!!
+            answer = -(correct_logits - incorrect_logits.max(dim=-1).values)
+            if return_one_element:
+                answer = answer.mean()
+            return answer
+
+        def ldgz_docstring_metric(
+            logits: torch.Tensor,
+            correct_labels: torch.Tensor,
+            wrong_labels: torch.Tensor,
+            return_one_element: bool = True,
+        ):
+            """Logit diff greater zero fraction (with neg sign)"""
+            pos_logits = logits[:, -1, :]
+            max_correct, _ = torch.gather(pos_logits, index=correct_labels[..., None], dim=1).max(dim=1)
+            max_wrong, _ = torch.gather(pos_logits, index=wrong_labels, dim=1).max(dim=1)
+
+            answer = -(max_correct - max_wrong > 0).float()
+            if return_one_element:
+                answer = answer.sum()
+                answer /= len(max_correct)
+
+            return answer
+
+        if metric_name == "kl_div":
+            validation_metric = partial(
+                kl_divergence,
+                base_model_logprobs=base_validation_logprobs,
+                last_seq_element_only=True,
+                base_model_probs_last_seq_element_only=False,
+                return_one_element=return_one_element,
+            )
+        elif metric_name == "docstring_metric":
+            validation_metric = partial(
+                raw_docstring_metric,
+                correct_labels=validation_labels,
+                wrong_labels=validation_wrong_labels,
+                log_correct_incorrect_wandb=correct_incorrect_wandb,
+                return_one_element=return_one_element,
+            )
+        elif metric_name == "docstring_stefan":
+            validation_metric = partial(
+                ldgz_docstring_metric,
+                correct_labels=validation_labels,
+                wrong_labels=validation_wrong_labels,
+                return_one_element=return_one_element,
+            )
+        elif metric_name == "nll":
+            validation_metric = partial(
+                negative_log_probs,
+                labels=validation_labels,
+                last_seq_element_only=True,
+                return_one_element=return_one_element,
+            )
+        elif metric_name == "match_nll":
+            validation_metric = MatchNLLMetric(
+                labels=validation_labels,
+                base_model_logprobs=base_validation_logprobs,
+                last_seq_element_only=True,
+                return_one_element=return_one_element,
+            )
+        else:
+            raise ValueError(f"metric_name {metric_name} not recognized")
+
+        test_metrics = {
+            "kl_div": partial(
+                kl_divergence,
+                base_model_logprobs=base_test_logprobs,
+                last_seq_element_only=True,
+                base_model_probs_last_seq_element_only=False,
+                return_one_element=return_one_element,
+            ),
+            "docstring_metric": partial(
+                raw_docstring_metric,
+                correct_labels=test_labels,
+                wrong_labels=test_wrong_labels,
+                log_correct_incorrect_wandb=correct_incorrect_wandb,
+                return_one_element=return_one_element,
+            ),
+            "docstring_stefan": partial(
+                ldgz_docstring_metric,
+                correct_labels=test_labels,
+                wrong_labels=test_wrong_labels,
+                return_one_element=return_one_element,
+            ),
+            "nll": partial(
+                negative_log_probs,
+                labels=test_labels,
+                last_seq_element_only=True,
+                return_one_element=return_one_element,
+            ),
+            "match_nll": MatchNLLMetric(
+                labels=test_labels,
+                base_model_logprobs=base_test_logprobs,
+                last_seq_element_only=True,
+                return_one_element=return_one_element,
+            ),
+        }
 
     return AllDataThings(
         tl_model=tl_model,

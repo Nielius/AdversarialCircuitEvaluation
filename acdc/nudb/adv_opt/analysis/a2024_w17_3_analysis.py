@@ -1,3 +1,6 @@
+"""Analysis script for the 2024-04-13-01-halving experiment, where I try to use gradient descent on the latent space
+to find adversarial inputs."""
+
 import json
 from pathlib import Path
 

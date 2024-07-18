@@ -278,7 +278,9 @@ def get_standard_experiment_data(
 
     experiment_data = data_provider_.get_experiment_data(
         num_examples=num_examples_,
-        metric_name="kl_div" if task_name != AdvOptTaskName.TRACR_REVERSE else "l2",
+        metric_name="none"
+        if task_name != AdvOptTaskName.TRACR_REVERSE
+        else "l2",  # TODO: do not make this "none" by default! temporary hack; used to be "kl_div"
         device=default_device,
     )
     return experiment_data

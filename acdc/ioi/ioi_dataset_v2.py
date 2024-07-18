@@ -128,6 +128,13 @@ IOI_PROMPT_PRETEMPLATES_OOD: list[Template] = [
 ]
 
 
+# for which template index, which positions are the object and place?
+IOI_PROMPT_TEMPLATE_TOKEN_POSITIONS: dict[int, dict[str, int]] = {
+    0: {"object": 17, "place": 12},
+    2: {"object": 13, "place": 8},
+}
+
+
 def _select_random_values(
     rng: random.Random, names_order: list[str], names: list[str], template_values: dict[str, list[str]]
 ) -> dict[str, str]:

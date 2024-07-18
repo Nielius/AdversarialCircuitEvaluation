@@ -11,6 +11,7 @@ class CircuitType(str, Enum):
     CANONICAL = "canonical"
     CORRUPTED_CANONICAL = "corrupted_canonical"
     FULL_MODEL = "full_model"
+    UNKNOWN = "unknown"
 
 
 @dataclass(kw_only=True)

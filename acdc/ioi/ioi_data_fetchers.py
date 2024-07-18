@@ -18,6 +18,7 @@ from acdc.ioi.ioi_dataset_v2 import (
     get_ioi_tokenizer,
 )
 from acdc.ioi.utils import get_gpt2_small
+from acdc.nudb.adv_opt.utils import model_forward_in_batches
 
 
 @dataclass
@@ -135,76 +136,87 @@ def get_all_ioi_things_for_input_data(
     validation_data, validation_patch_data, validation_labels, validation_wrong_labels = input_data.validation_data
     test_data, test_patch_data, test_labels, test_wrong_labels = input_data.test_data
 
-    with torch.no_grad():
-        base_model_logits = tl_model(input_data.default_data)[:, -1, :]
-        base_model_logprobs = F.log_softmax(base_model_logits, dim=-1)
+    if metric_name == "none":
+        # For many experiments, such as the brute force distribution analysis, we don't need any of these metrics.
+        # The reason I disabled them, is that they take up a huge amount of memory, because the tensors have shape
+        # (num_examples * 2, seq_len, vocab_size), and the vocab size is pretty big.
+        def validation_metric():
+            raise NotImplementedError("No metric specified")
 
-    base_validation_logprobs = base_model_logprobs[:num_examples, :]
-    base_test_logprobs = base_model_logprobs[num_examples:, :]
-
-    if metric_name == "kl_div":
-        validation_metric = partial(
-            kl_divergence,
-            base_model_logprobs=base_validation_logprobs,
-            last_seq_element_only=True,
-            base_model_probs_last_seq_element_only=False,
-            return_one_element=kl_return_one_element,
-        )
-    elif metric_name == "logit_diff":
-        validation_metric = partial(
-            logit_diff_metric,
-            correct_labels=validation_labels,
-            wrong_labels=validation_wrong_labels,
-        )
-    elif metric_name == "frac_correct":
-        validation_metric = partial(
-            frac_correct_metric,
-            correct_labels=validation_labels,
-            wrong_labels=validation_wrong_labels,
-        )
-    elif metric_name == "nll":
-        validation_metric = partial(
-            negative_log_probs,
-            labels=validation_labels,
-            last_seq_element_only=True,
-        )
-    elif metric_name == "match_nll":
-        validation_metric = MatchNLLMetric(
-            labels=validation_labels,
-            base_model_logprobs=base_validation_logprobs,
-            last_seq_element_only=True,
-        )
+        test_metrics = {}
     else:
-        raise ValueError(f"metric_name {metric_name} not recognized")
+        with torch.no_grad():
+            base_model_logits = model_forward_in_batches(
+                tl_model, input_data.default_data, batch_size=1024, slice_obj=(slice(None), -1, slice(None))
+            )  # slice_obj=[:, -1, :]
+            base_model_logprobs = F.log_softmax(base_model_logits, dim=-1)
 
-    test_metrics = {
-        "kl_div": partial(
-            kl_divergence,
-            base_model_logprobs=base_test_logprobs,
-            last_seq_element_only=True,
-            base_model_probs_last_seq_element_only=False,
-        ),
-        "logit_diff": partial(
-            logit_diff_metric,
-            correct_labels=test_labels,
-            wrong_labels=test_wrong_labels,
-        ),
-        "frac_correct": partial(
-            frac_correct_metric,
-            correct_labels=test_labels,
-            wrong_labels=test_wrong_labels,
-        ),
-        "nll": partial(
-            negative_log_probs,
-            labels=test_labels,
-            last_seq_element_only=True,
-        ),
-        "match_nll": MatchNLLMetric(
-            labels=test_labels,
-            base_model_logprobs=base_test_logprobs,
-            last_seq_element_only=True,
-        ),
-    }
+        base_validation_logprobs = base_model_logprobs[:num_examples, :]
+        base_test_logprobs = base_model_logprobs[num_examples:, :]
+
+        if metric_name == "kl_div":
+            validation_metric = partial(
+                kl_divergence,
+                base_model_logprobs=base_validation_logprobs,
+                last_seq_element_only=True,
+                base_model_probs_last_seq_element_only=False,
+                return_one_element=kl_return_one_element,
+            )
+        elif metric_name == "logit_diff":
+            validation_metric = partial(
+                logit_diff_metric,
+                correct_labels=validation_labels,
+                wrong_labels=validation_wrong_labels,
+            )
+        elif metric_name == "frac_correct":
+            validation_metric = partial(
+                frac_correct_metric,
+                correct_labels=validation_labels,
+                wrong_labels=validation_wrong_labels,
+            )
+        elif metric_name == "nll":
+            validation_metric = partial(
+                negative_log_probs,
+                labels=validation_labels,
+                last_seq_element_only=True,
+            )
+        elif metric_name == "match_nll":
+            validation_metric = MatchNLLMetric(
+                labels=validation_labels,
+                base_model_logprobs=base_validation_logprobs,
+                last_seq_element_only=True,
+            )
+        else:
+            raise ValueError(f"metric_name {metric_name} not recognized")
+
+        test_metrics = {
+            "kl_div": partial(
+                kl_divergence,
+                base_model_logprobs=base_test_logprobs,
+                last_seq_element_only=True,
+                base_model_probs_last_seq_element_only=False,
+            ),
+            "logit_diff": partial(
+                logit_diff_metric,
+                correct_labels=test_labels,
+                wrong_labels=test_wrong_labels,
+            ),
+            "frac_correct": partial(
+                frac_correct_metric,
+                correct_labels=test_labels,
+                wrong_labels=test_wrong_labels,
+            ),
+            "nll": partial(
+                negative_log_probs,
+                labels=test_labels,
+                last_seq_element_only=True,
+            ),
+            "match_nll": MatchNLLMetric(
+                labels=test_labels,
+                base_model_logprobs=base_test_logprobs,
+                last_seq_element_only=True,
+            ),
+        }
 
     return AllDataThings(
         tl_model=tl_model,

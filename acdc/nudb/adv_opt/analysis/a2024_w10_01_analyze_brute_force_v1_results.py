@@ -18,19 +18,22 @@ from acdc.nudb.adv_opt.analysis.analyzer_brute_force_v1 import (
 from acdc.nudb.adv_opt.data_fetchers import AdvOptTaskName
 from acdc.nudb.adv_opt.utils import ADVOPT_DATA_DIR
 
-raw_outputs_base_dir = ADVOPT_DATA_DIR / "raw/tidy/2024-03-02-bruteforce-v1"
-
-experiment_path: dict[AdvOptTaskName, Path] = {
-    AdvOptTaskName.IOI: raw_outputs_base_dir / "2024-03-02-011541_bruteforce_ioi_1",
-    AdvOptTaskName.GREATERTHAN: raw_outputs_base_dir / "2024-03-02-081117_bruteforce_greaterthan_1",
-    AdvOptTaskName.TRACR_REVERSE: raw_outputs_base_dir / "2024-03-02-130207_bruteforce_tracr_reverse_1",
-    AdvOptTaskName.DOCSTRING: raw_outputs_base_dir / "2024-03-02-130221_bruteforce_docstring_1",
-}
-
 
 @dataclass
 class AnalysisSettings:
     task_name: AdvOptTaskName = AdvOptTaskName.GREATERTHAN
+    input_dir: Path | None = None
+
+
+def get_default_input_dir(task_name: AdvOptTaskName) -> Path:
+    raw_outputs_base_dir = ADVOPT_DATA_DIR / "raw/tidy/2024-03-02-bruteforce-v1"
+    experiment_path: dict[AdvOptTaskName, Path] = {
+        AdvOptTaskName.IOI: raw_outputs_base_dir / "2024-03-02-011541_bruteforce_ioi_1",
+        AdvOptTaskName.GREATERTHAN: raw_outputs_base_dir / "2024-03-02-081117_bruteforce_greaterthan_1",
+        AdvOptTaskName.TRACR_REVERSE: raw_outputs_base_dir / "2024-03-02-130207_bruteforce_tracr_reverse_1",
+        AdvOptTaskName.DOCSTRING: raw_outputs_base_dir / "2024-03-02-130221_bruteforce_docstring_1",
+    }
+    return experiment_path[task_name]
 
 
 cs = ConfigStore.instance()
@@ -45,7 +48,9 @@ ic.configureOutput(outputFunction=logger.info)
 def main(settings: AnalysisSettings):
     task_name = settings.task_name
     output_base_dir = Path(hydra_config.HydraConfig.get().runtime.output_dir)
-    experiment_analyzer = BruteForceExperimentAnalyzerV1.from_dir(experiment_path[task_name], task_name)
+    input_dir = settings.input_dir or get_default_input_dir(task_name)
+
+    experiment_analyzer = BruteForceExperimentAnalyzerV1.from_dir(input_dir, task_name)
 
     experiment_analyzer.plot(output_base_dir)
 

@@ -1,14 +1,28 @@
-"""Generate LaTeX tables of circuit outputs for use in the workshop paper."""
+"""Generate LaTeX tables of circuit outputs for use in the workshop paper.
 
+The input is basically a BruteForceExperimentOutputAnalysisV1."""
+
+import sys
 from pathlib import Path
 
 import jsonpickle
 import pandas as pd
 
+from acdc.nudb.adv_opt.analysis.analyzer_brute_force_v1 import BruteForceExperimentOutputAnalysisV1
 from acdc.nudb.adv_opt.data_fetchers import AdvOptTaskName
 
 
-def load_df(path: Path) -> pd.DataFrame:
+def load_df(path: Path, version: int) -> pd.DataFrame:
+    def load_brute_force_analysis_v1(path: Path) -> BruteForceExperimentOutputAnalysisV1:
+        decoded_obj = jsonpickle.loads(path.read_text())
+        match decoded_obj:
+            case [BruteForceExperimentOutputAnalysisV1() as analysis]:
+                return analysis
+            case BruteForceExperimentOutputAnalysisV1() as analysis:
+                return analysis
+            case _:
+                raise ValueError("Could not decode the object")
+
     def assign_combined_output_and_logit_columns(df: pd.DataFrame):
         return df.assign(
             **df[["most_likely_output_model", "logits_model"]]
@@ -22,10 +36,12 @@ def load_df(path: Path) -> pd.DataFrame:
             .rename(columns=lambda idx: f"circuit {idx}")
         )
 
-    analysis = jsonpickle.loads(path.read_text())[0]
+    analysis = load_brute_force_analysis_v1(path)
     return (
         pd.DataFrame(analysis.top_k_worst_inputs)
-        .assign(loss=lambda df: df.loss * 50_257)
+        .assign(
+            loss=lambda df: df.loss * (50_257 if version == 1 else 1)
+        )  # * 50_257 is because of an error in the original code
         .pipe(assign_combined_output_and_logit_columns)
     )
 
@@ -70,12 +86,31 @@ def generate_latex_table(df: pd.DataFrame, task_name: AdvOptTaskName) -> str:
 
 
 if __name__ == "__main__":
-    base_dir = Path("/home/niels/data/advopt/processed/2024-05-20-brute-force-loss-and-output-analysis")
-    output_base_path = Path("/home/niels")
+    version = 1 if len(sys.argv) < 2 else int(sys.argv[1])
 
-    for task_name in [AdvOptTaskName.IOI, AdvOptTaskName.DOCSTRING, AdvOptTaskName.GREATERTHAN]:
-        analysis_path = base_dir / str(task_name) / "analyses.json"
-        output_path = output_base_path / f"{task_name.value}-outputtable.tex"
+    if version == 1:
+        base_dir = Path("/home/niels/data/advopt/processed/2024-05-20-brute-force-loss-and-output-analysis")
+        output_base_path = Path("/home/niels")
 
-        latex_str = generate_latex_table(load_df(analysis_path), task_name)
-        output_path.write_text(latex_str)
+        for task_name in [AdvOptTaskName.IOI, AdvOptTaskName.DOCSTRING, AdvOptTaskName.GREATERTHAN]:
+            analysis_path = base_dir / str(task_name) / "analyses.json"
+            output_path = output_base_path / f"{task_name.value}-outputtable.tex"
+
+            latex_str = generate_latex_table(load_df(analysis_path, version=version), task_name)
+            output_path.write_text(latex_str)
+
+    elif version == 2:
+        print("Running version 2, with the normal input matched to the patched input.")
+
+        base_dir = Path(
+            "/home/niels/data/advopt/processed/2024-07-11-brute-force-loss-and-output-analysis-matched-corruptions"
+        )
+        output_base_path = Path("/home/niels")
+
+        for task_name in [AdvOptTaskName.IOI, AdvOptTaskName.DOCSTRING, AdvOptTaskName.GREATERTHAN]:
+            analysis_path = base_dir / str(task_name.value) / "analysis.json"
+            output_path = output_base_path / f"{task_name.value}-outputtable-matched-corruptions.tex"
+
+            latex_str = generate_latex_table(load_df(analysis_path, version=version), task_name)
+            output_path.write_text(latex_str)
+            print("Wrote to ", output_path)

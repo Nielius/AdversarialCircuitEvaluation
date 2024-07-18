@@ -6,6 +6,7 @@ from typing import Any, Callable, Iterable, TypeVar
 
 import torch
 from joblib import Memory
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
 num_examples = 5
@@ -72,8 +73,27 @@ class DeepTokenDecoder:
     def decode(self, tokens: torch.Tensor) -> str:
         """Decode the input_ids tensor. Assume that the tokens in the last dimension should be joined together
         to one string."""
-        return deep_map_with_depth(self._tokenizer.decode, tokens, self._determine_iteration_depth(tokens) - 1)
+        return deep_map_with_depth(self._tokenizer.decode, tokens, max(self._determine_iteration_depth(tokens) - 1, 0))
 
     @staticmethod
     def _determine_iteration_depth(tokens: torch.Tensor) -> int:
         return tokens.ndim
+
+
+def model_forward_in_batches(
+    model: torch.nn.Module,
+    input: torch.Tensor,
+    batch_size: int,
+    slice_obj: tuple[slice | int, ...],
+    **kwargs,
+) -> torch.Tensor:
+    """Run the model forward in batches of size `batch_size`.
+    I can't believe there is no standard library function for this?!"""
+    num_examples = input.shape[0]
+    outputs = []
+    for i in tqdm(range(0, num_examples, batch_size)):
+        batch_input = input[i : i + batch_size]
+        new_output = model(batch_input, **kwargs)[slice_obj]
+        print("Memory usage: ", new_output.element_size() * new_output.nelement())
+        outputs.append(new_output)
+    return torch.cat(outputs)

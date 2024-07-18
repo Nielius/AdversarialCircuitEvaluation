@@ -1,15 +1,18 @@
-"""Generate LaTeX tables of circuit outputs for use in the workshop paper."""
+"""Generate LaTeX tables summarizing the circuit loss distributions. The input is basically just
+a tensor of the losses (floats)."""
 
 from itertools import groupby
 from pathlib import Path
 
+import jsonpickle
 import pandas as pd
 import torch
 
 from acdc.nudb.adv_opt.data_fetchers import AdvOptTaskName
 
 
-def load_all_distribution_data() -> dict[str, torch.Tensor]:
+def load_all_distribution_data_v1() -> dict[str, torch.Tensor]:
+    """Loads distribution data from a v1 experiment (`CircuitPerformanceDistributionResultsV1`)"""
     suffix = Path("artifacts/metrics_canonical.pt")
     metric_paths = {
         AdvOptTaskName.IOI: Path(
@@ -26,6 +29,24 @@ def load_all_distribution_data() -> dict[str, torch.Tensor]:
     }
 
     return {task.value: torch.load(path, map_location="cpu") * 50_257 for task, path in metric_paths.items()}
+
+
+def load_all_distribution_data_v2() -> dict[str, torch.Tensor]:
+    """Similar to the above, but loads it from `BruteForceResults`"""
+    basename = "results_circuittype.canonical.json"
+    data_dir = Path("/home/niels/data/advopt/raw/tidy/2024-07-10-bruteforce-1M-samples-matched-corruptions")
+
+    metric_paths = {
+        task: data_dir / subdir / basename
+        for task, subdir in [
+            (AdvOptTaskName.IOI, "2024-07-09-094807_bruteforce_ioi"),
+            (AdvOptTaskName.DOCSTRING, "2024-07-09-182856_bruteforce_docstring"),
+            (AdvOptTaskName.GREATERTHAN, "2024-07-09-225415_bruteforce_greaterthan"),
+        ]
+    }
+    # These files are jsonpickles of BruteForceResults
+
+    return {task.value: jsonpickle.decode(path.read_text()).circuit_loss for task, path in metric_paths.items()}
 
 
 if __name__ == "__main__":
@@ -52,7 +73,7 @@ if __name__ == "__main__":
 
         return percentiles_with_std
 
-    percentiles = pd.DataFrame(load_all_distribution_data()).describe(
+    percentiles = pd.DataFrame(load_all_distribution_data_v2()).describe(
         percentiles=[0.25, 0.5, 0.75, 0.95, 0.99, 0.999, 0.9999]
     )
     percentiles_with_std = add_columns_with_z_scores(percentiles)
@@ -80,5 +101,5 @@ if __name__ == "__main__":
 
     # Store results
 
-    Path("/home/niels/proj/acdc/nudb/paper/test-latex/testtable.tex").write_text(latex_str)
+    Path("/home/niels/tmp/testtable.tex").write_text(latex_str)
     print(latex_str)
